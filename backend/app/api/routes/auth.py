@@ -66,12 +66,15 @@ oauth2 = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 # System DB connection  (your Docker PostgreSQL)
 # ─────────────────────────────────────────────────────────────
 def _system_conn():
-    uri = (
-        f"postgresql://"
-        f"{os.getenv('DB_USER','da_user')}:{os.getenv('DB_PASSWORD','da_pass')}"
-        f"@{os.getenv('DB_HOST','127.0.0.1')}:{os.getenv('DB_PORT','5433')}"
-        f"/{os.getenv('DB_NAME','da_db')}"
-    )
+    host = os.getenv('DB_HOST', '127.0.0.1')
+    port = os.getenv('DB_PORT', '5433')
+    user = os.getenv('DB_USER', 'da_user')
+    pwd  = os.getenv('DB_PASS') or os.getenv('DB_PASSWORD', 'da_pass')
+    name = os.getenv('DB_NAME', 'da_db')
+    if host.startswith('/'):
+        uri = f'postgresql://{user}:{pwd}@/{name}?host={host}'
+    else:
+        uri = f'postgresql://{user}:{pwd}@{host}:{port}/{name}' 
     try:
         return psycopg2.connect(uri, connect_timeout=8,
                                 cursor_factory=psycopg2.extras.RealDictCursor)
@@ -847,6 +850,39 @@ def delete_upload_record(upload_id: int, user=Depends(get_current_user)):
         conn.close()
     return {"message": "Record removed."}
 
+@router.post("/connections/get-password", summary="Get decrypted password for a saved connection")
+def get_connection_password(req: GetURIRequest, user=Depends(get_current_user)):
+    """Returns decrypted password + connection fields. Used by MySQL, MongoDB swarm."""
+    conn = _system_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT host, port, dbname, db_username, encrypted_password, db_type
+                FROM user_connections
+                WHERE id = %s AND user_id = %s
+            """, (req.connection_id, user["user_id"]))
+            row = cur.fetchone()
+        conn.commit()
+    finally:
+        conn.close()
+
+    if not row:
+        raise HTTPException(404, detail="Connection not found.")
+
+    r = dict(row)
+    try:
+        pw = decrypt_db_password(r["encrypted_password"])
+    except Exception as e:
+        raise HTTPException(500, detail=f"Failed to decrypt connection password: {e}")
+
+    return {
+        "password":    pw,
+        "host":        r["host"],
+        "port":        r["port"],
+        "dbname":      r["dbname"],
+        "db_username": r["db_username"],
+        "db_type":     r["db_type"],
+    }
 
 # ─────────────────────────────────────────────────────────────
 # Internal helpers used by pg_query.py

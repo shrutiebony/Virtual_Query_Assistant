@@ -1,0 +1,1392 @@
+{
+  "system": "Database Assistant — SJSU CMPE 295B",
+  "benchmark": "KDD Cup 2026 DataAgent-Bench Phase 1",
+  "total": 50,
+  "passed": 28,
+  "partial": 1,
+  "failed": 11,
+  "errored": 10,
+  "accuracy": 57.0,
+  "avg_time_s": 13.4,
+  "by_difficulty": {
+    "easy": {
+      "total": 15,
+      "passed": 10,
+      "partial": 0,
+      "failed": 2,
+      "errored": 3,
+      "accuracy": 66.7
+    },
+    "medium": {
+      "total": 23,
+      "passed": 14,
+      "partial": 0,
+      "failed": 5,
+      "errored": 4,
+      "accuracy": 60.9
+    },
+    "hard": {
+      "total": 10,
+      "passed": 3,
+      "partial": 1,
+      "failed": 4,
+      "errored": 2,
+      "accuracy": 35.0
+    },
+    "extreme": {
+      "total": 2,
+      "passed": 1,
+      "partial": 0,
+      "failed": 0,
+      "errored": 1,
+      "accuracy": 50.0
+    }
+  },
+  "results": [
+    {
+      "task_id": "task_11",
+      "difficulty": "easy",
+      "question": "For patients with severe degree of thrombosis, list their ID, sex and disease the patient is diagnosed with.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 3 rows",
+      "elapsed_s": 13.63,
+      "sql": "SELECT DISTINCT\n  P.id,\n  P.sex,\n  P.diagnosis\nFROM benchmark_tmp.patient AS P\nJOIN benchmark_tmp.examination AS E\n  ON CAST(P.id AS DECIMAL) = CAST(E.id AS DECIMAL)\nWHERE\n  CAST(E.thrombosis AS INTEGER) = 2\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "id": "163109",
+          "sex": "F",
+          "diagnosis": "SLE"
+        },
+        {
+          "id": "2803470",
+          "sex": "F",
+          "diagnosis": "SLE"
+        },
+        {
+          "id": "4395720",
+          "sex": "F",
+          "diagnosis": "SLE"
+        }
+      ],
+      "gold": [
+        {
+          "ID": 163109,
+          "SEX": "F",
+          "Diagnosis": "SLE"
+        },
+        {
+          "ID": 2803470,
+          "SEX": "F",
+          "Diagnosis": "SLE"
+        },
+        {
+          "ID": 4395720,
+          "SEX": "F",
+          "Diagnosis": "SLE"
+        }
+      ]
+    },
+    {
+      "task_id": "task_19",
+      "difficulty": "easy",
+      "question": "List the full name of the Student_Club members that grew up in Illinois state.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Values match (100%)",
+      "elapsed_s": 6.19,
+      "sql": "SELECT\n  benchmark_tmp.member.first_name || ' ' || benchmark_tmp.member.last_name\nFROM\n  benchmark_tmp.member\nJOIN\n  benchmark_tmp.zip_code\nON\n  benchmark_tmp.member.zip = benchmark_tmp.zip_code.zip_code\nWHERE\n  benchmark_tmp.zip_code.state = 'Illinois'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "?column?": "Annabella Warren"
+        },
+        {
+          "?column?": "Tyler Hewitt"
+        },
+        {
+          "?column?": "Trent Smith"
+        }
+      ],
+      "gold": [
+        {
+          "first_name": "Trent",
+          "last_name": "Smith"
+        },
+        {
+          "first_name": "Tyler",
+          "last_name": "Hewitt"
+        },
+        {
+          "first_name": "Annabella",
+          "last_name": "Warren"
+        }
+      ]
+    },
+    {
+      "task_id": "task_22",
+      "difficulty": "easy",
+      "question": "State the date Connor Hilton paid his/her dues.",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Row count: got 1, expected 2",
+      "elapsed_s": 2.56,
+      "sql": "SELECT\n  T1.date_received\nFROM benchmark_tmp.income AS T1\nINNER JOIN benchmark_tmp.member AS T2\n  ON T1.link_to_member = T2.member_id\nWHERE\n  T2.first_name = 'Connor' AND T2.last_name = 'Hilton' AND T1.source = 'Dues'\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "date_received": "2019-10-02"
+        }
+      ],
+      "gold": [
+        {
+          "date_received": "2019-10-02"
+        },
+        {
+          "date_received": "2019-09-12"
+        }
+      ]
+    },
+    {
+      "task_id": "task_24",
+      "difficulty": "easy",
+      "question": "How many members attended the \"Women's Soccer\" event?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 6.09,
+      "sql": "SELECT\n  COUNT(DISTINCT benchmark_tmp.attendance.link_to_member)\nFROM benchmark_tmp.attendance\nJOIN benchmark_tmp.event\n  ON benchmark_tmp.attendance.link_to_event = benchmark_tmp.event.event_id\nWHERE\n  benchmark_tmp.event.event_name = 'Women''s Soccer'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "count": 17
+        }
+      ],
+      "gold": [
+        {
+          "COUNT(T2.link_to_member)": 17
+        }
+      ]
+    },
+    {
+      "task_id": "task_25",
+      "difficulty": "easy",
+      "question": "Which event has the lowest cost?",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['officers meeting - october']]",
+      "elapsed_s": 2.8,
+      "sql": "SELECT\n  T2.event_name\nFROM benchmark_tmp.expense AS T1\nJOIN benchmark_tmp.budget AS T3\n  ON T1.link_to_budget = T3.budget_id\nJOIN benchmark_tmp.event AS T2\n  ON T3.link_to_event = T2.event_id\nGROUP BY\n  T2.event_name\nORDER BY\n  SUM(CAST(T1.cost AS NUMERIC)) ASC\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "event_name": "Officers meeting - October"
+        }
+      ],
+      "gold": [
+        {
+          "event_name": "November Speaker"
+        }
+      ]
+    },
+    {
+      "task_id": "task_26",
+      "difficulty": "easy",
+      "question": "How many members of the Student_Club have major in 'Physics Teaching'?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 2.3,
+      "sql": "SELECT\n  COUNT(T1.member_id)\nFROM benchmark_tmp.member AS T1\nINNER JOIN benchmark_tmp.major AS T2\n  ON T1.link_to_major = T2.major_id\nWHERE\n  T2.major_name = 'Physics Teaching'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "count": 1
+        }
+      ],
+      "gold": [
+        {
+          "COUNT(T2.member_id)": 1
+        }
+      ]
+    },
+    {
+      "task_id": "task_27",
+      "difficulty": "easy",
+      "question": "List out the full name and total cost that member id \"rec4BLdZHS2Blfp4v\" incurred?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Values match (100%)",
+      "elapsed_s": 2.68,
+      "sql": "SELECT\n  m.first_name || ' ' || m.last_name AS full_name,\n  SUM(CAST(e.cost AS NUMERIC)) AS total_cost\nFROM benchmark_tmp.member AS m\nJOIN benchmark_tmp.expense AS e\n  ON m.member_id = e.link_to_member\nWHERE\n  m.member_id = 'rec4BLdZHS2Blfp4v'\nGROUP BY\n  m.first_name,\n  m.last_name\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "full_name": "Sacha Harrison",
+          "total_cost": 866.25
+        }
+      ],
+      "gold": [
+        {
+          "first_name": "Sacha",
+          "last_name": "Harrison",
+          "SUM(T2.cost)": 866.25
+        }
+      ]
+    },
+    {
+      "task_id": "task_38",
+      "difficulty": "easy",
+      "question": "List all the withdrawals in cash transactions that the client with the id 3356 makes.",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 80.38,
+      "sql": "SELECT\n  benchmark_tmp.trans.trans_id,\n  benchmark_tmp.trans.account_id,\n  benchmark_tmp.trans.date,\n  benchmark_tmp.trans.type,\n  benchmark_tmp.trans.operation,\n  benchmark_tmp.trans.amount,\n  benchmark_tmp.trans.balance,\n  benchmark_tmp.trans.k_symbol,\n  benchmark_tmp.trans.bank,\n  benchmark_tmp.trans.account\nFROM\n  benchmark_tmp.trans\nJOIN\n  benchmark_tmp.disp ON benchmark_tmp.trans.account_id ",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "trans_id": 816173
+        },
+        {
+          "trans_id": 816174
+        },
+        {
+          "trans_id": 816175
+        },
+        {
+          "trans_id": 816181
+        },
+        {
+          "trans_id": 816185
+        }
+      ]
+    },
+    {
+      "task_id": "task_64",
+      "difficulty": "easy",
+      "question": "Please list all the superpowers of 3-D Man.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 4 rows",
+      "elapsed_s": 2.63,
+      "sql": "SELECT DISTINCT\n  T3.power_name\nFROM benchmark_tmp.superhero AS T1\nINNER JOIN benchmark_tmp.hero_power AS T2\n  ON T1.id = T2.hero_id\nINNER JOIN benchmark_tmp.superpower AS T3\n  ON T2.power_id = T3.id\nWHERE\n  T1.superhero_name = '3-D Man'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "power_name": "Stamina"
+        },
+        {
+          "power_name": "Agility"
+        },
+        {
+          "power_name": "Super Strength"
+        },
+        {
+          "power_name": "Super Speed"
+        }
+      ],
+      "gold": [
+        {
+          "power_name": "Agility"
+        },
+        {
+          "power_name": "Super Strength"
+        },
+        {
+          "power_name": "Stamina"
+        },
+        {
+          "power_name": "Super Speed"
+        }
+      ]
+    },
+    {
+      "task_id": "task_67",
+      "difficulty": "easy",
+      "question": "What is the average weight of all female superheroes?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 2.63,
+      "sql": "SELECT AVG(CAST(benchmark_tmp.superhero.weight_kg AS REAL))\nFROM benchmark_tmp.superhero\nJOIN benchmark_tmp.gender\n  ON benchmark_tmp.superhero.gender_id = benchmark_tmp.gender.id\nWHERE\n  benchmark_tmp.gender.gender = 'Female'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "avg": 60.77956989247312
+        }
+      ],
+      "gold": [
+        {
+          "AVG(T1.weight_kg)": 60.77956989247312
+        }
+      ]
+    },
+    {
+      "task_id": "task_74",
+      "difficulty": "easy",
+      "question": "Provide the eye colour of the superhero who has Karen Beecher-Duncan as their full name.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 2.57,
+      "sql": "SELECT\n  T2.colour\nFROM benchmark_tmp.superhero AS T1\nINNER JOIN benchmark_tmp.colour AS T2\n  ON T1.eye_colour_id = T2.id\nWHERE\n  T1.full_name = 'Karen Beecher-Duncan'\n\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "colour": "Brown"
+        }
+      ],
+      "gold": [
+        {
+          "colour": "Brown"
+        }
+      ]
+    },
+    {
+      "task_id": "task_75",
+      "difficulty": "easy",
+      "question": "What is the surname of the driver with the best lap time in race number 19 in the second qualifying period?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 2.53,
+      "sql": "SELECT\n  T2.surname\nFROM benchmark_tmp.qualifying AS T1\nINNER JOIN benchmark_tmp.drivers AS T2\n  ON T1.driverid = T2.driverid\nWHERE\n  T1.raceid = '19'\nORDER BY\n  T1.q2 ASC\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "surname": "Räikkönen"
+        }
+      ],
+      "gold": [
+        {
+          "surname": "Räikkönen"
+        }
+      ]
+    },
+    {
+      "task_id": "task_80",
+      "difficulty": "easy",
+      "question": "What is his number of the driver who finished 0:01:54 in the Q3 of qualifying race No.903?",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 15.56,
+      "sql": "SELECT\n  T1.number\nFROM benchmark_tmp.qualifying AS T1\nWHERE\n  T1.raceid = '903' AND T1.q3 = '0:01:54'\nLIMIT 1",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "number": 3
+        },
+        {
+          "number": 5
+        }
+      ]
+    },
+    {
+      "task_id": "task_86",
+      "difficulty": "easy",
+      "question": "Which race was Alex Yoong in when he was in track number less than 20?",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 19.5,
+      "sql": "SELECT\n  T3.name\nFROM benchmark_tmp.drivers AS T1\nINNER JOIN benchmark_tmp.driverstandings AS T2\n  ON T1.driverid = T2.driverid\nINNER JOIN benchmark_tmp.races AS T3\n  ON T2.raceid = T3.raceid\nWHERE\n  T1.forename = 'Alex' AND T1.surname = 'Yoong' AND CAST(T1.number AS REAL) < 20\nLIMIT 1",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "name": "Australian Grand Prix"
+        },
+        {
+          "name": "Malaysian Grand Prix"
+        },
+        {
+          "name": "Brazilian Grand Prix"
+        },
+        {
+          "name": "San Marino Grand Prix"
+        },
+        {
+          "name": "Spanish Grand Prix"
+        }
+      ]
+    },
+    {
+      "task_id": "task_89",
+      "difficulty": "easy",
+      "question": "What's the finish time for the driver who ranked second in 2008's Chinese Grand Prix?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 5.43,
+      "sql": "SELECT T1.time FROM benchmark_tmp.results AS T1 JOIN benchmark_tmp.races AS T2 ON T1.raceid = T2.raceid WHERE T2.name = 'Chinese Grand Prix' AND T2.year = '2008' AND T1.rank = '2.0' LIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "time": "+16.445"
+        }
+      ],
+      "gold": [
+        {
+          "time": 16.445
+        }
+      ]
+    },
+    {
+      "task_id": "task_145",
+      "difficulty": "medium",
+      "question": "Among the events attended by more than 10 members of the Student_Club, how many of them are meetings?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 2.82,
+      "sql": "SELECT COUNT(T1.event_id)\nFROM\n  (SELECT T2.event_id\n   FROM benchmark_tmp.attendance AS T1\n   INNER JOIN benchmark_tmp.event AS T2\n     ON T1.link_to_event = T2.event_id\n   GROUP BY\n     T2.event_id\n   HAVING\n     COUNT(T1.link_to_member) > 10) AS T1\nINNER JOIN benchmark_tmp.event AS T2\n  ON T1.event_id = T2.event_id\nWHERE\n  T2.type = 'Meeting'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "count": 4
+        }
+      ],
+      "gold": [
+        {
+          "COUNT(*)": 4
+        }
+      ]
+    },
+    {
+      "task_id": "task_163",
+      "difficulty": "medium",
+      "question": "Identify the type of expenses and their total value approved for 'October Meeting' event.",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Row count: got 3, expected 1",
+      "elapsed_s": 2.91,
+      "sql": "SELECT\n  benchmark_tmp.expense.expense_description,\n  SUM(CAST(benchmark_tmp.expense.cost AS REAL))\nFROM benchmark_tmp.expense\nJOIN benchmark_tmp.budget\n  ON benchmark_tmp.expense.link_to_budget = benchmark_tmp.budget.budget_id\nJOIN benchmark_tmp.event\n  ON benchmark_tmp.budget.link_to_event = benchmark_tmp.event.event_id\nWHERE\n  benchmark_tmp.event.event_name = 'October Meeting' AND benchmark_tmp",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "expense_description": "Pizza",
+          "sum": 51.81
+        },
+        {
+          "expense_description": "Posters",
+          "sum": 54.25
+        },
+        {
+          "expense_description": "Water, chips, cookies",
+          "sum": 69.33
+        }
+      ],
+      "gold": [
+        {
+          "type": "Meeting",
+          "SUM(T3.cost)": 175.39
+        }
+      ]
+    },
+    {
+      "task_id": "task_169",
+      "difficulty": "medium",
+      "question": "What was the average monthly consumption of customers in SME for the year 2013?",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['5519.48']]",
+      "elapsed_s": 4.68,
+      "sql": "SELECT AVG(CAST(ym.consumption AS REAL))\nFROM benchmark_tmp.yearmonth AS ym\nJOIN benchmark_tmp.customers AS c ON ym.customerid = c.customerid\nWHERE c.segment = 'SME'\n  AND ym.date LIKE '2013%'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "avg": 5519.475170534913
+        }
+      ],
+      "gold": [
+        {
+          "AVG(T2.Consumption) / 12": 459.9562642871061
+        }
+      ]
+    },
+    {
+      "task_id": "task_173",
+      "difficulty": "medium",
+      "question": "Please list the countries of the gas stations with transactions taken place in June, 2013.",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 9.9,
+      "sql": "SELECT DISTINCT\n  benchmark_tmp.gasstations.country\nFROM benchmark_tmp.gasstations\nJOIN benchmark_tmp.transactions_1k\n  ON benchmark_tmp.gasstations.gasstationid = benchmark_tmp.transactions_1k.gasstationid\nWHERE\n  benchmark_tmp.transactions_1k.date LIKE '2013-06-%'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "Country": "CZE"
+        },
+        {
+          "Country": "SVK"
+        }
+      ]
+    },
+    {
+      "task_id": "task_180",
+      "difficulty": "medium",
+      "question": "For all the people who paid more than 29.00 per unit of product id No.5. Give their consumption status in the August of 2012.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Values match (100%)",
+      "elapsed_s": 16.02,
+      "sql": "SELECT\n  benchmark_tmp.yearmonth.customerid,\n  benchmark_tmp.yearmonth.consumption\nFROM benchmark_tmp.yearmonth\nWHERE\n  benchmark_tmp.yearmonth.customerid IN (\n    SELECT DISTINCT\n      benchmark_tmp.transactions_1k.customerid\n    FROM benchmark_tmp.transactions_1k\n    WHERE\n      benchmark_tmp.transactions_1k.productid = '5'\n      AND CAST(benchmark_tmp.transactions_1k.amount AS REAL) > 0\n      A",
+      "error": "",
+      "react_attempts": 2,
+      "self_corrected": true,
+      "prediction": [
+        {
+          "customerid": "18831",
+          "consumption": "1903.2"
+        },
+        {
+          "customerid": "20447",
+          "consumption": "58.19"
+        },
+        {
+          "customerid": "23861",
+          "consumption": "8878.07"
+        },
+        {
+          "customerid": "24700",
+          "consumption": "69331.72"
+        },
+        {
+          "customerid": "45868",
+          "consumption": "1142.95"
+        }
+      ],
+      "gold": [
+        {
+          "Consumption": 1903.2
+        },
+        {
+          "Consumption": 88265.39
+        },
+        {
+          "Consumption": 1129.2
+        },
+        {
+          "Consumption": 126157.7
+        },
+        {
+          "Consumption": 58.19
+        }
+      ]
+    },
+    {
+      "task_id": "task_194",
+      "difficulty": "medium",
+      "question": "What are the bonds that have phosphorus and nitrogen as their atom elements?",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 12.63,
+      "sql": "SELECT DISTINCT\n  T1.bond_id\nFROM benchmark_tmp.connected AS T1\nINNER JOIN benchmark_tmp.atom AS T2\n  ON T1.atom_id = T2.atom_id\nINNER JOIN benchmark_tmp.atom AS T3\n  ON T1.atom_id2 = T3.atom_id\nWHERE\n  (\n    T2.element = 'P' AND T3.element = 'N'\n  ) OR (\n    T2.element = 'N' AND T3.element = 'P'\n  )\nLIMIT 200",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "bond_id": "TR032_2_3"
+        },
+        {
+          "bond_id": "TR032_3_5"
+        },
+        {
+          "bond_id": "TR058_1_3"
+        },
+        {
+          "bond_id": "TR058_1_4"
+        },
+        {
+          "bond_id": "TR058_1_5"
+        }
+      ]
+    },
+    {
+      "task_id": "task_196",
+      "difficulty": "medium",
+      "question": "What is the average number of bonds the atoms with the element iodine have?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 8.22,
+      "sql": "SELECT\n    AVG(bonds_per_atom.num_bonds)\nFROM\n    (SELECT\n        benchmark_tmp.atom.atom_id,\n        COUNT(DISTINCT benchmark_tmp.connected.bond_id) AS num_bonds\n    FROM\n        benchmark_tmp.atom\n    JOIN\n        benchmark_tmp.connected ON benchmark_tmp.atom.atom_id = benchmark_tmp.connected.atom_id OR benchmark_tmp.atom.atom_id = benchmark_tmp.connected.atom_id2\n    WHERE\n        benchmark_tmp",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "avg": 1.0
+        }
+      ],
+      "gold": [
+        {
+          "CAST(COUNT(T2.bond_id) AS REAL) / COUNT(T1.atom_id)": 1.0
+        }
+      ]
+    },
+    {
+      "task_id": "task_199",
+      "difficulty": "medium",
+      "question": "List the names and funding types of schools from Riverside-related school districts where the average SAT math score across schools exceeds 400.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 6 rows",
+      "elapsed_s": 7.61,
+      "sql": "SELECT DISTINCT\n  frpm.school_name,\n  frpm.charter_funding_type\nFROM benchmark_tmp.frpm AS frpm\nJOIN benchmark_tmp.satscores AS satscores\n  ON frpm.cdscode = satscores.cds\nWHERE\n  satscores.rtype = 'S' AND satscores.dname LIKE '%Riverside%'\nGROUP BY\n  frpm.school_name,\n  frpm.charter_funding_type,\n  frpm.cdscode\nHAVING\n  AVG(CAST(satscores.avgscrmath AS REAL)) > 400\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "school_name": "Arlington High",
+          "charter_funding_type": NaN
+        },
+        {
+          "school_name": "John W. North High",
+          "charter_funding_type": NaN
+        },
+        {
+          "school_name": "Martin Luther King Jr. High",
+          "charter_funding_type": NaN
+        },
+        {
+          "school_name": "Polytechnic High",
+          "charter_funding_type": NaN
+        },
+        {
+          "school_name": "Ramona High",
+          "charter_funding_type": NaN
+        }
+      ],
+      "gold": [
+        {
+          "sname": "Arlington High",
+          "Charter Funding Type": NaN
+        },
+        {
+          "sname": "John W. North High",
+          "Charter Funding Type": NaN
+        },
+        {
+          "sname": "Martin Luther King Jr. High",
+          "Charter Funding Type": NaN
+        },
+        {
+          "sname": "Polytechnic High",
+          "Charter Funding Type": NaN
+        },
+        {
+          "sname": "Ramona High",
+          "Charter Funding Type": NaN
+        }
+      ]
+    },
+    {
+      "task_id": "task_200",
+      "difficulty": "medium",
+      "question": "Calculate the total atoms with triple-bond molecules containing the element phosphorus or bromine.",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['0']]",
+      "elapsed_s": 6.47,
+      "sql": "SELECT\n  COUNT(benchmark_tmp.atom.atom_id)\nFROM\n  benchmark_tmp.atom\nWHERE\n  benchmark_tmp.atom.molecule_id IN (\n    SELECT DISTINCT\n      T1.molecule_id\n    FROM\n      benchmark_tmp.atom AS T1\n    JOIN\n      benchmark_tmp.bond AS T2\n    ON\n      T1.molecule_id = T2.molecule_id\n    WHERE\n      T2.bond_type = '#' AND T1.element IN ('P', 'Br')\n  )\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "count": 0
+        }
+      ],
+      "gold": [
+        {
+          "COUNT(T1.atom_id)": 1
+        }
+      ]
+    },
+    {
+      "task_id": "task_214",
+      "difficulty": "medium",
+      "question": "How many Brazilian Portuguese translated sets are inside the Commander block?",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['0']]",
+      "elapsed_s": 2.79,
+      "sql": "SELECT COUNT(DISTINCT T1.setcode) FROM benchmark_tmp.set_translations AS T1 JOIN benchmark_tmp.sets AS T2 ON T1.setcode = T2.code WHERE T1.language = 'Brazilian Portuguese' AND T2.block = 'Commander'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "count": 0
+        }
+      ],
+      "gold": [
+        {
+          "COUNT(T1.id)": 7
+        }
+      ]
+    },
+    {
+      "task_id": "task_218",
+      "difficulty": "medium",
+      "question": "What is the telephone number for the school with the lowest average score in reading in Fresno Unified?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 4.05,
+      "sql": "SELECT\n  T1.phone\nFROM benchmark_tmp.schools AS T1\nINNER JOIN benchmark_tmp.satscores AS T2\n  ON T1.cdscode = T2.cds\nWHERE\n  T2.dname = 'Fresno Unified'\nORDER BY\n  CAST(T2.avgscrread AS REAL) ASC\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "phone": "(559) 248-5100"
+        }
+      ],
+      "gold": [
+        {
+          "Phone": "(559) 248-5100"
+        }
+      ]
+    },
+    {
+      "task_id": "task_243",
+      "difficulty": "medium",
+      "question": "For the user No.24, how many times is the number of his/her posts compared to his/her votes?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 19.74,
+      "sql": "SELECT\n    CAST(\n        (SELECT COUNT(*) FROM benchmark_tmp.posts WHERE benchmark_tmp.posts.owneruserid = '24.0')\n        AS REAL\n    )\n    /\n    (\n        SELECT COUNT(*) FROM benchmark_tmp.votes WHERE benchmark_tmp.votes.userid = '24.0'\n    )\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "?column?": 0.375
+        }
+      ],
+      "gold": [
+        {
+          "CAST(COUNT(DISTINCT T2.Id) AS REAL) / COUNT(DISTINCT T1.Id)": 0.375
+        }
+      ]
+    },
+    {
+      "task_id": "task_249",
+      "difficulty": "medium",
+      "question": "What is the average of the up votes and the average user age for users creating more than 10 posts?",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['']]",
+      "elapsed_s": 17.94,
+      "sql": "SELECT\n  AVG(CAST(u.upvotes AS NUMERIC)),\n  AVG(CAST(u.age AS NUMERIC))\nFROM benchmark_tmp.users AS u\nJOIN (\n  SELECT\n    p.owneruserid\n  FROM benchmark_tmp.posts AS p\n  WHERE p.owneruserid IS NOT NULL\n  GROUP BY\n    p.owneruserid\n  HAVING\n    COUNT(p.id) > 10\n) AS user_posts ON u.id = user_posts.owneruserid LIMIT 200",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [
+        {
+          "avg": null
+        }
+      ],
+      "gold": [
+        {
+          "AVG(T1.UpVotes)": 182.2832618025751,
+          "AVG(T1.Age)": 34.083333333333336
+        }
+      ]
+    },
+    {
+      "task_id": "task_250",
+      "difficulty": "medium",
+      "question": "Which post by slashnick has the most answers count? State the post ID.",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 36.2,
+      "sql": "SELECT\n  T1.id\nFROM benchmark_tmp.posts AS T1\nJOIN benchmark_tmp.users AS T2\n  ON T1.owneruserid = T2.id\nWHERE\n  T2.displayname = 'slashnick'\nORDER BY\n  CAST(T1.answercount AS INTEGER) DESC\nLIMIT 1",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "PostId": 351
+        }
+      ]
+    },
+    {
+      "task_id": "task_257",
+      "difficulty": "medium",
+      "question": "Identify the total views on the post 'Computer Game Datasets'. Name the user who posted it last time.",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 68.62,
+      "sql": "SELECT\n    CAST(p.viewcount AS INTEGER) AS total_views,\n    (\n        SELECT\n            u.displayname\n        FROM\n            benchmark_tmp.posthistory AS ph\n        JOIN\n            benchmark_tmp.users AS u ON CAST(ph.userid AS INTEGER) = CAST(u.id AS INTEGER)\n        WHERE\n            ph.postid = p.id\n        ORDER BY\n            ph.creationdate DESC\n        \n    ) AS last_poster_display_name\n",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "ViewCount": 1708,
+          "DisplayName": "mbq"
+        }
+      ]
+    },
+    {
+      "task_id": "task_259",
+      "difficulty": "medium",
+      "question": "Among the posts with views ranging from 100 to 150, what is the comment with the highest score?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 18.63,
+      "sql": "SELECT\n  benchmark_tmp.comments.text\nFROM benchmark_tmp.comments\nJOIN benchmark_tmp.posts\n  ON benchmark_tmp.comments.postid = benchmark_tmp.posts.id\nWHERE\n  CAST(benchmark_tmp.posts.viewcount AS REAL) BETWEEN 100.0 AND 150.0\nORDER BY\n  CAST(benchmark_tmp.comments.score AS REAL) DESC\nLIMIT 1",
+      "error": "",
+      "react_attempts": 2,
+      "self_corrected": true,
+      "prediction": [
+        {
+          "text": "Welcome to Cross Validated David P, for more information about the site and how to ask questions, you can check out the [FAQ](http://stats.stackexchange.com/faq). Is your question just about whether the calculation is right or wrong (it is wrong, with the numbers you give on your second line the result of the operation is 0.187, rounded)? Otherwise, yes, a percentage can be as close to zero as you can imagine because it is bounded between 0 and 100 and continuous on that interval."
+        }
+      ],
+      "gold": [
+        {
+          "Text": "Welcome to Cross Validated David P, for more information about the site and how to ask questions, you can check out the [FAQ](http://stats.stackexchange.com/faq). Is your question just about whether the calculation is right or wrong (it is wrong, with the numbers you give on your second line the result of the operation is 0.187, rounded)? Otherwise, yes, a percentage can be as close to zero as you can imagine because it is bounded between 0 and 100 and continuous on that interval."
+        }
+      ]
+    },
+    {
+      "task_id": "task_261",
+      "difficulty": "medium",
+      "question": "Among the superheroes with the super power of \"Super Strength\", how many of them have a height of over 200cm?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 3.18,
+      "sql": "SELECT COUNT(DISTINCT T1.id)\nFROM benchmark_tmp.superhero AS T1\nJOIN benchmark_tmp.hero_power AS T2\n  ON T1.id = T2.hero_id\nJOIN benchmark_tmp.superpower AS T3\n  ON T2.power_id = T3.id\nWHERE\n  T3.power_name = 'Super Strength' AND CAST(T1.height_cm AS REAL) > 200.0\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "count": 56
+        }
+      ],
+      "gold": [
+        {
+          "COUNT(T1.id)": 56
+        }
+      ]
+    },
+    {
+      "task_id": "task_269",
+      "difficulty": "medium",
+      "question": "What are the names of the superheroes with the power of death touch?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 7 rows",
+      "elapsed_s": 3.04,
+      "sql": "SELECT\n  DISTINCT benchmark_tmp.superhero.superhero_name\nFROM benchmark_tmp.superhero\nJOIN benchmark_tmp.hero_power\n  ON benchmark_tmp.superhero.id = benchmark_tmp.hero_power.hero_id\nJOIN benchmark_tmp.superpower\n  ON benchmark_tmp.hero_power.power_id = benchmark_tmp.superpower.id\nWHERE\n  benchmark_tmp.superpower.power_name = 'Death Touch'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "superhero_name": "Living Tribunal"
+        },
+        {
+          "superhero_name": "One-Above-All"
+        },
+        {
+          "superhero_name": "Poison Ivy"
+        },
+        {
+          "superhero_name": "Spectre"
+        },
+        {
+          "superhero_name": "Black Flash"
+        }
+      ],
+      "gold": [
+        {
+          "superhero_name": "Black Flash"
+        },
+        {
+          "superhero_name": "Blackwulf"
+        },
+        {
+          "superhero_name": "Hela"
+        },
+        {
+          "superhero_name": "Living Tribunal"
+        },
+        {
+          "superhero_name": "One-Above-All"
+        }
+      ]
+    },
+    {
+      "task_id": "task_283",
+      "difficulty": "medium",
+      "question": "Calculate the percentage of superheroes with blue eyes.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 4.91,
+      "sql": "SELECT\n    CAST(SUM(CASE WHEN c.colour = 'Blue' THEN 1 ELSE 0 END) AS REAL) * 100.0 / COUNT(s.id)\nFROM\n    benchmark_tmp.superhero AS s\nJOIN\n    benchmark_tmp.colour AS c ON s.eye_colour_id = c.id\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "?column?": 31.2
+        }
+      ],
+      "gold": [
+        {
+          "CAST(COUNT(CASE WHEN T2.colour = 'Blue' THEN 1 ELSE NULL END) AS REAL) * 100 / COUNT(T1.id)": 31.2
+        }
+      ]
+    },
+    {
+      "task_id": "task_287",
+      "difficulty": "medium",
+      "question": "Identify the gender of the superhero who has the ability of Phoenix Force.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 3.17,
+      "sql": "SELECT\n  T4.gender\nFROM benchmark_tmp.superpower AS T1\nJOIN benchmark_tmp.hero_power AS T2\n  ON T1.id = T2.power_id\nJOIN benchmark_tmp.superhero AS T3\n  ON T2.hero_id = T3.id\nJOIN benchmark_tmp.gender AS T4\n  ON T3.gender_id = T4.id\nWHERE\n  T1.power_name = 'Phoenix Force'\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "gender": "Female"
+        }
+      ],
+      "gold": [
+        {
+          "gender": "Female"
+        }
+      ]
+    },
+    {
+      "task_id": "task_292",
+      "difficulty": "medium",
+      "question": "For the constructor which got the highest point in the race No. 9 , what is its introduction website?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 2.65,
+      "sql": "SELECT\n  T2.url\nFROM benchmark_tmp.constructorresults AS T1\nINNER JOIN benchmark_tmp.constructors AS T2\n  ON T1.constructorid = T2.constructorid\nWHERE\n  T1.raceid = '9'\nORDER BY\n  CAST(T1.points AS REAL) DESC\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "url": "http://en.wikipedia.org/wiki/Red_Bull_Racing"
+        }
+      ],
+      "gold": [
+        {
+          "url": "http://en.wikipedia.org/wiki/Red_Bull_Racing"
+        }
+      ]
+    },
+    {
+      "task_id": "task_303",
+      "difficulty": "medium",
+      "question": "Among all European Grand Prix races, what is the percentage of the races were hosted in Germany?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 5.22,
+      "sql": "SELECT\n  CAST(SUM(CASE WHEN benchmark_tmp.circuits.country = 'Germany' THEN 1 ELSE 0 END) AS REAL) * 100.0 / COUNT(benchmark_tmp.races.raceid)\nFROM\n  benchmark_tmp.races\nJOIN\n  benchmark_tmp.circuits\nON\n  benchmark_tmp.races.circuitid = benchmark_tmp.circuits.circuitid\nWHERE\n  benchmark_tmp.races.name = 'European Grand Prix'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "?column?": 52.17391304347826
+        }
+      ],
+      "gold": [
+        {
+          "CAST(COUNT(CASE WHEN T1.country = 'Germany' THEN T2.circuitID END) AS REAL) * 100 / COUNT(T2.circuitId)": 52.17391304347826
+        }
+      ]
+    },
+    {
+      "task_id": "task_305",
+      "difficulty": "medium",
+      "question": "What was the fastest lap speed among all drivers in the 2009 Spanish Grand Prix?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 4.84,
+      "sql": "SELECT MAX(CAST(benchmark_tmp.results.fastestlapspeed AS REAL))\nFROM benchmark_tmp.races\nJOIN benchmark_tmp.results ON benchmark_tmp.races.raceid = benchmark_tmp.results.raceid\nWHERE benchmark_tmp.races.year = '2009' AND benchmark_tmp.races.name = 'Spanish Grand Prix' LIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "max": 202.484
+        }
+      ],
+      "gold": [
+        {
+          "fastestLapSpeed": 202.484
+        }
+      ]
+    },
+    {
+      "task_id": "task_330",
+      "difficulty": "hard",
+      "question": "What was the final score for the match on September 24, 2008, in the Belgian Jupiler League between the home team and the away team?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 30.46,
+      "sql": "SELECT\n  benchmark_tmp.match.home_team_goal,\n  benchmark_tmp.match.away_team_goal\nFROM\n  benchmark_tmp.match\nWHERE\n  benchmark_tmp.match.date LIKE '2008-09-24%'\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "home_team_goal": "1",
+          "away_team_goal": "1"
+        }
+      ],
+      "gold": [
+        {
+          "home_team_goal": 1,
+          "away_team_goal": 1
+        }
+      ]
+    },
+    {
+      "task_id": "task_344",
+      "difficulty": "hard",
+      "question": "Among the male patients who have a normal level of white blood cells, how many of them have an abnormal fibrinogen level?",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['301']]",
+      "elapsed_s": 30.15,
+      "sql": "SELECT COUNT(DISTINCT benchmark_tmp.laboratory.id) FROM benchmark_tmp.laboratory WHERE benchmark_tmp.laboratory.wbc IS NOT NULL AND benchmark_tmp.laboratory.fg IS NULL LIMIT 200",
+      "error": "",
+      "react_attempts": 2,
+      "self_corrected": true,
+      "prediction": [
+        {
+          "count": 301
+        }
+      ],
+      "gold": [
+        {
+          "COUNT(DISTINCT T1.ID)": 4
+        }
+      ]
+    },
+    {
+      "task_id": "task_349",
+      "difficulty": "hard",
+      "question": "What's Angela Sanders's major?",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['recxk3mhqfbr9j5uo']]",
+      "elapsed_s": 15.6,
+      "sql": "SELECT\n  benchmark_tmp.member.link_to_major\nFROM benchmark_tmp.member\nWHERE\n  benchmark_tmp.member.first_name = 'Angela' AND benchmark_tmp.member.last_name = 'Sanders'\nLIMIT 1",
+      "error": "",
+      "react_attempts": 2,
+      "self_corrected": true,
+      "prediction": [
+        {
+          "link_to_major": "recxK3MHQFbR9J5uO"
+        }
+      ],
+      "gold": [
+        {
+          "major_name": "Business"
+        }
+      ]
+    },
+    {
+      "task_id": "task_350",
+      "difficulty": "hard",
+      "question": "Among the students from the Student_Club who attended the event \"Women's Soccer\", how many of them want a T-shirt that's in medium size?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 2.77,
+      "sql": "SELECT\n  COUNT(T1.member_id)\nFROM benchmark_tmp.member AS T1\nINNER JOIN benchmark_tmp.attendance AS T2\n  ON T1.member_id = T2.link_to_member\nWHERE\n  T2.link_to_event = 'rec2N69DMcrqN9PJC' AND T1.t_shirt_size = 'Medium'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "count": 7
+        }
+      ],
+      "gold": [
+        {
+          "COUNT(T1.event_id)": 7
+        }
+      ]
+    },
+    {
+      "task_id": "task_352",
+      "difficulty": "hard",
+      "question": "How many times was the budget in Advertisement for \"Yearly Kickoff\" meeting more than \"October Meeting\"?",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['0']]",
+      "elapsed_s": 32.27,
+      "sql": "SELECT 0 LIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "?column?": 0
+        }
+      ],
+      "gold": [
+        {
+          "CAST(SUM(CASE WHEN T2.event_name = 'Yearly Kickoff' THEN T1.amount ELSE 0 END) AS REAL) / SUM(CASE WHEN T2.event_name = 'October Meeting' THEN T1.amount ELSE 0 END)": 2.727272727272727
+        }
+      ]
+    },
+    {
+      "task_id": "task_355",
+      "difficulty": "hard",
+      "question": "Write the full name of the member who spent money for water, veggie tray and supplies and include the cost of it.",
+      "status": "FAIL",
+      "score": 0.0,
+      "detail": "Mismatch 0%. Got: [['recd078pns3x2dobe', '199.39']]",
+      "elapsed_s": 19.21,
+      "sql": "SELECT\n  benchmark_tmp.expense.link_to_member,\n  SUM(CAST(benchmark_tmp.expense.cost AS REAL)) AS total_cost\nFROM\n  benchmark_tmp.expense\nWHERE\n  benchmark_tmp.expense.expense_description LIKE '%Water%' OR\n  benchmark_tmp.expense.expense_description LIKE '%Veggie Tray%' OR\n  benchmark_tmp.expense.expense_description LIKE '%Supplies%'\nGROUP BY\n  benchmark_tmp.expense.link_to_member\nORDER BY\n  total",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "link_to_member": "recD078PnS3x2doBe",
+          "total_cost": 199.39
+        }
+      ],
+      "gold": [
+        {
+          "first_name": "Elijah",
+          "last_name": "Allen",
+          "cost": 28.15
+        }
+      ]
+    },
+    {
+      "task_id": "task_379",
+      "difficulty": "hard",
+      "question": "Tally the toxicology element of the 4th atom of each molecule that was carcinogenic.",
+      "status": "PARTIAL",
+      "score": 0.5,
+      "detail": "Row mismatch (12 vs 7) 100% overlap",
+      "elapsed_s": 11.85,
+      "sql": "SELECT\n  a.element,\n  COUNT(a.element)\nFROM (\n  SELECT\n    benchmark_tmp.atom.molecule_id,\n    benchmark_tmp.atom.element,\n    ROW_NUMBER() OVER (PARTITION BY benchmark_tmp.atom.molecule_id ORDER BY benchmark_tmp.atom.atom_id) AS rn\n  FROM\n    benchmark_tmp.atom\n) AS a\nWHERE\n  a.rn = 4\nGROUP BY\n  a.element\nORDER BY\n  COUNT(a.element) DESC\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "element": "c",
+          "count": 197
+        },
+        {
+          "element": "h",
+          "count": 144
+        },
+        {
+          "element": "o",
+          "count": 40
+        },
+        {
+          "element": "cl",
+          "count": 37
+        },
+        {
+          "element": "n",
+          "count": 11
+        }
+      ],
+      "gold": [
+        {
+          "element": "c"
+        },
+        {
+          "element": "br"
+        },
+        {
+          "element": "cl"
+        },
+        {
+          "element": "s"
+        },
+        {
+          "element": "o"
+        }
+      ]
+    },
+    {
+      "task_id": "task_396",
+      "difficulty": "hard",
+      "question": "In superheroes with height between 150 to 180, what is the percentage of heroes published by Marvel Comics?",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 37.99,
+      "sql": "SELECT\n  CAST(SUM(CASE WHEN benchmark_tmp.publisher.publisher_name = 'Marvel Comics' THEN 1 ELSE 0 END) AS REAL) * 100.0 / COUNT(benchmark_tmp.superhero.superhero_name)\nFROM\n  benchmark_tmp.superhero\nJOIN\n  benchmark_tmp.publisher\nON\n  benchmark_tmp.superhero.publisher_id = benchmark_tmp.publisher.id\nWHERE\n  benchmark_tmp.superhero.height_cm BETWEEN 150 AND 180\nLIMIT 200",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "CAST(COUNT(CASE WHEN T2.publisher_name = 'Marvel Comics' THEN 1 ELSE NULL END) AS REAL) * 100 / COUNT(T1.id)": 54.83870967741935
+        }
+      ]
+    },
+    {
+      "task_id": "task_408",
+      "difficulty": "hard",
+      "question": "How much faster in percentage is the champion than the driver who finished the race last in the 2008 Australian Grand Prix?",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No prediction",
+      "elapsed_s": 30.3,
+      "sql": "SELECT\n    (\n        (SELECT CAST(benchmark_tmp.results.milliseconds AS REAL)\n         FROM benchmark_tmp.results\n         WHERE benchmark_tmp.results.raceid = '18'\n         ORDER BY CAST(benchmark_tmp.results.positionorder AS INTEGER) DESC\n         \n        )\n        -\n        (SELECT CAST(benchmark_tmp.results.milliseconds AS REAL)\n         FROM benchmark_tmp.results\n         WHERE benchmark_tmp",
+      "error": "",
+      "react_attempts": 3,
+      "self_corrected": true,
+      "prediction": [],
+      "gold": [
+        {
+          "(CAST((SELECT time_seconds FROM last_driver_incremental) AS REAL) * 100) / (SELECT time_seconds + (SELECT time_seconds FROM last_driver_incremental) FROM champion_time)": 0.3155573228603009
+        }
+      ]
+    },
+    {
+      "task_id": "task_415",
+      "difficulty": "hard",
+      "question": "What is the constructor reference name of the champion in the 2009 Singapore Grand Prix? Please give its website.",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 14.32,
+      "sql": "SELECT\n  T1.constructorref,\n  T1.url\nFROM benchmark_tmp.constructors AS T1\nJOIN benchmark_tmp.results AS T2\n  ON T1.constructorid = T2.constructorid\nWHERE\n  T2.raceid = '18' AND T2.position = '1.0'\nLIMIT 1",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "constructorref": "mclaren",
+          "url": "http://en.wikipedia.org/wiki/McLaren"
+        }
+      ],
+      "gold": [
+        {
+          "constructorRef": "mclaren",
+          "url": "http://en.wikipedia.org/wiki/McLaren"
+        }
+      ]
+    },
+    {
+      "task_id": "task_418",
+      "difficulty": "extreme",
+      "question": "Among the patients whose creatinine level is abnormal, how many of them aren't 70 yet?",
+      "status": "ERROR",
+      "score": 0.0,
+      "detail": "No data files",
+      "elapsed_s": 0.0,
+      "sql": "",
+      "error": "No data",
+      "react_attempts": 0,
+      "prediction": [],
+      "gold": []
+    },
+    {
+      "task_id": "task_420",
+      "difficulty": "extreme",
+      "question": "What percentage of cards with format commander and legal status do not have a content warning?",
+      "status": "PASS",
+      "score": 1.0,
+      "detail": "Exact match — 1 rows",
+      "elapsed_s": 12.62,
+      "sql": "SELECT\n  CAST(SUM(CASE WHEN T2.hascontentwarning = '0' THEN 1 ELSE 0 END) AS REAL) * 100.0 / COUNT(T1.uuid)\nFROM benchmark_tmp.legalities AS T1\nINNER JOIN benchmark_tmp.cards AS T2\n  ON T1.uuid = T2.uuid\nWHERE\n  T1.format = 'commander' AND T1.status = 'Legal'\nLIMIT 200",
+      "error": "",
+      "react_attempts": 1,
+      "self_corrected": false,
+      "prediction": [
+        {
+          "?column?": 100.0
+        }
+      ],
+      "gold": [
+        {
+          "CAST(SUM(CASE WHEN T1.hasContentWarning = 0 THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(T1.id)": 100.0
+        }
+      ]
+    }
+  ]
+}

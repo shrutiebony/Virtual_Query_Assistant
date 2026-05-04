@@ -1,4 +1,4 @@
-fastapi
+﻿fastapi
 uvicorn[standard]
 psycopg2-binary
 google-cloud-storage
@@ -7,3 +7,18 @@ openpyxl
 python-multipart
 sqlalchemy
 google-generativeai
+google-genai
+mysql-connector-python==8.3.0
+motor
+pymongo
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+cryptography
+python-dotenv
+requests
+numpy
+aiofiles
+httpx
+pydantic[email]
+email-validator

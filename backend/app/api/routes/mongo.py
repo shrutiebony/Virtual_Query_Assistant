@@ -426,6 +426,7 @@ def mongo_nl_query(req: MongoNLQRequest):
         "summary": post_state.summary or f"Returned {len(safe_data)} rows.",
         "viz": post_state.viz,
         "profile": post_state.profile,
+        "eda_insights": post_state.eda_insights,
     }
 
 # ---------------------------------------------------------------------------
@@ -738,6 +739,16 @@ Rules:
         flattened = [{k: d.get(k) for k in non_empty_keys} for d in flattened]
     safe_data = [_json_safe(d) for d in flattened]
 
+    # Run post-processing pipeline for EDA + insights
+    from app.state.agent_state import AgentState as _AgentState
+    join_post = _AgentState(
+        source        = "mongodb",
+        user_question = req.question,
+        results       = safe_data,
+        columns       = list(safe_data[0].keys()) if safe_data else [],
+    )
+    join_post = _orchestrator.run_post_processing(join_post)
+
     return {
         "source":             "mongo_join",
         "db_name":            req.db_name,
@@ -749,4 +760,8 @@ Rules:
         "count":              len(safe_data),
         "data":               safe_data,
         "execution_time_ms":  elapsed_ms,
+        "summary":            join_post.summary,
+        "viz":                join_post.viz,
+        "profile":            join_post.profile,
+        "eda_insights":       join_post.eda_insights,
     }

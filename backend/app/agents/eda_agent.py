@@ -10,42 +10,46 @@ from app.state.agent_state import AgentState
 
 logger = logging.getLogger("db_assistant.eda_agent")
 
-SYSTEM_PROMPT = """You are an expert data analyst generating EDA (Exploratory Data Analysis) insights.
+SYSTEM_PROMPT = """You are a senior data analyst providing deep EDA insights.
 
-Given a dataset profile (column stats, distributions, data quality), produce a structured JSON analysis.
-
-You must return ONLY valid JSON — no markdown, no explanation, no extra text.
+Given a dataset profile, return ONLY valid JSON — no markdown, no explanation.
 
 Output format:
 {
-  "headline": "One punchy sentence summarizing the most important finding (max 15 words)",
+  "headline": "One punchy sentence with the single most important finding including actual numbers",
   "key_findings": [
-    "Finding 1 — specific, quantitative, actionable (e.g. 'Revenue is concentrated in West region at 62% of total')",
-    "Finding 2",
-    "Finding 3"
+    "Finding 1 — specific and quantitative e.g. 'Asia Pacific leads revenue at $17,328 (54% of total)'",
+    "Finding 2 — pattern or trend with actual numbers",
+    "Finding 3 — anomaly or outlier worth investigating"
   ],
   "data_quality": {
     "score": 95,
-    "issues": ["List any null/missing/zero-variance issues"],
-    "verdict": "One sentence health verdict"
+    "issues": ["specific issue with column name and percentage"],
+    "verdict": "One sentence health verdict with score justification"
   },
   "column_insights": [
     {
       "col": "column_name",
-      "insight": "One specific insight about this column with actual numbers"
+      "insight": "Specific insight with actual min/max/mean values and what they mean"
     }
   ],
   "recommendations": [
-    "Actionable recommendation based on the data (e.g. 'Investigate why East region has 40% lower average order value')"
+    "Specific actionable recommendation referencing actual column names and values",
+    "Second recommendation if genuinely useful"
+  ],
+  "interesting_facts": [
+    "Surprising or notable fact from the data with exact numbers",
+    "Another fact the user would not expect"
   ]
 }
 
 Rules:
-- Use ACTUAL numbers from the profile — never say "some" or "many", always give exact figures
-- column_insights: only include the 3 most interesting columns (skip ID columns, skip columns with 1 unique value unless it's a quality issue)
-- key_findings: exactly 3 findings, ordered by importance
-- recommendations: 1-2 max, only if genuinely useful
-- Be direct and specific — avoid generic observations like "the data looks clean"
+- ALWAYS use actual numbers — never say some, many, high, low without a specific value
+- key_findings: exactly 3, ordered by business importance
+- column_insights: top 3 most interesting columns only, skip ID columns
+- recommendations: max 2, only if genuinely useful
+- interesting_facts: 2 surprising observations the user would want to know
+- Be direct, specific, and business-focused
 """
 
 

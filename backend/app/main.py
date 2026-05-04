@@ -11,15 +11,23 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from app.api.routes.swarm import router as swarm_router
+
 
 from pathlib import Path
 load_dotenv(Path(__file__).parent.parent / ".env")
 
+from app.api.routes.genui import router as genui_router
 from app.api.routes.auth              import router as auth_router
 from app.api.routes.history           import router as history_router
 from app.api.routes.mongo             import router as mongo_router
 from app.api.routes.pg_query          import router as pg_router
 from app.api.routes.internal_datasets import router as datasets_router
+from app.api.routes.ai_functions import router as ai_router
+from app.api.routes.mysql_routes import router as mysql_router
+from app.api.routes.benchmark import router as benchmark_router
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +53,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── CORS ─────────────────────────────────────────────────────────────────────
+# Reads allowed origins from .env so you never have to touch this file again.
+# .env (development):  ALLOWED_ORIGINS=http://localhost:3000
+# .env (production):   ALLOWED_ORIGINS=https://your-deployed-frontend.com
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +73,11 @@ app.include_router(history_router)
 app.include_router(pg_router)
 app.include_router(mongo_router)
 app.include_router(datasets_router)
+app.include_router(genui_router)
+app.include_router(ai_router)
+app.include_router(mysql_router)
+app.include_router(swarm_router)
+app.include_router(benchmark_router)
 
 
 @app.exception_handler(Exception)

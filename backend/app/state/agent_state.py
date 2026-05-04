@@ -70,3 +70,12 @@ class AgentState:
     summary:      Optional[str]  = None   # InsightAgent
     viz:          Optional[Dict] = None   # VisualizationAgent
     eda_insights: Optional[Dict] = None   # EDAAgent
+
+    # ── ReAct loop tracking ───────────────────────────────────────────────
+    react_attempts:    int            = 0         # how many attempts made
+    react_max_attempts: int           = 3         # max retries
+    react_thoughts:    List[str]      = field(default_factory=list)  # reasoning trace
+    react_actions:     List[str]      = field(default_factory=list)  # actions taken
+    react_observations: List[str]     = field(default_factory=list)  # what happened
+    react_enabled:     bool           = True      # can be disabled per request
+    previous_sql_errors: List[str]    = field(default_factory=list)  # error history

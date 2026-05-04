@@ -1,6 +1,5 @@
 # backend/app/agents/orchestrator.py
 from __future__ import annotations
-
 import logging
 from app.state.agent_state import AgentState
 
@@ -9,6 +8,7 @@ from app.agents.pg_schema_agent    import PgSchemaAgent
 from app.agents.pg_nl_to_sql_agent import PgNLToSQLAgent
 from app.agents.pg_safety_agent    import PgSafetyAgent
 from app.agents.pg_execution_agent import PgExecutionAgent
+from app.agents.react_agent import ReActAgent
 
 # Shared post-processing agents (work for both PG and Mongo)
 from app.agents.insight_agent       import InsightAgent
@@ -63,6 +63,8 @@ class Orchestrator:
         self.eda_agent           = EDAAgent()
         self.insight_agent       = InsightAgent()
         self.visualization_agent = VisualizationAgent()
+        # ReAct loop agent
+        self.react_agent = ReActAgent()
 
     # ──────────────────────────────────────────────────────────
     # Pipeline 1: PostgreSQL NL Query
@@ -80,20 +82,10 @@ class Orchestrator:
         if state.execution_error:
             return state
 
-        # Step 2: Generate SQL from natural language
-        state = self.pg_nl_to_sql_agent.run(state)
+        # Steps 2-4: ReAct loop (NLToSQL + Safety + Execution with retry)
+        state = self.react_agent.run(state)
         if state.execution_error:
-            return state
-
-        # Step 3: Validate SQL safety
-        state = self.pg_safety_agent.run(state)
-        if state.execution_error:
-            return state
-
-        # Step 4: Execute SQL
-        state = self.pg_execution_agent.run(state)
-        if state.execution_error:
-            return state
+         return state
 
         # Step 5: Profile results
         state = self.profiling_agent.run(state)

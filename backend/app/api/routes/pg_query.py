@@ -27,7 +27,7 @@ _orchestrator = Orchestrator()
 
 
 # ─────────────────────────────────────────────────────────────
-# Internal helpers (connection, upload, etc.)
+# Internal helpers
 # ─────────────────────────────────────────────────────────────
 def _get_conn(pg_uri: str):
     try:
@@ -96,8 +96,8 @@ def _fetch_all_tables(pg_uri: str) -> dict:
 
 
 def _state_to_response(state: AgentState) -> Dict:
-    """Convert AgentState to API response dict."""
-    return {
+    """Convert AgentState to API response dict — includes ReAct trace."""
+    response = {
         "source":            "postgresql_auto",
         "tables_used":       state.tables_used,
         "question":          state.user_question,
@@ -109,7 +109,20 @@ def _state_to_response(state: AgentState) -> Dict:
         "summary":           state.summary,
         "viz":               state.viz,
         "profile":           state.profile,
+        "eda_insights":      state.eda_insights,
     }
+
+    # Include ReAct trace if the loop ran
+    if state.react_attempts > 0:
+        response["react_trace"] = {
+            "attempts":     state.react_attempts,
+            "thoughts":     state.react_thoughts,
+            "actions":      state.react_actions,
+            "observations": state.react_observations,
+            "self_corrected": state.react_attempts > 1,
+        }
+
+    return response
 
 
 # ─────────────────────────────────────────────────────────────
@@ -140,7 +153,8 @@ class PgPreviewRequest(BaseModel):
 class PgNLQueryAutoRequest(BaseModel):
     pg_uri:    str
     question:  str
-    limit:     int = Field(50, ge=1, le=500)
+    limit:     int  = Field(50, ge=1, le=500)
+    react:     bool = True   # enable/disable ReAct loop per request
 
 class PgDirectQueryRequest(BaseModel):
     pg_uri: str
@@ -295,27 +309,26 @@ async def upload_csv_to_pg(
 
 
 # ─────────────────────────────────────────────────────────────
-# ✅ AGENTIC: NL Query — goes through full Orchestrator pipeline
+# ✅ AGENTIC: NL Query with ReAct loop
 # ─────────────────────────────────────────────────────────────
 @router.post("/nl-query-auto")
 def pg_nl_query_auto(req: PgNLQueryAutoRequest):
     """
-    Fully agentic NL query:
-    PgSchemaAgent → PgNLToSQLAgent → PgSafetyAgent → PgExecutionAgent
-    → InsightAgent → VisualizationAgent
+    Fully agentic NL query with ReAct self-correction loop:
+    PgSchemaAgent → ReActAgent (NLToSQL + Safety + Execution, up to 3 retries)
+    → ProfilingAgent → EDAAgent → InsightAgent → VisualizationAgent
     """
-    # Build initial state
     state = AgentState(
-        source        = "postgresql",
-        pg_uri        = req.pg_uri,
-        user_question = req.question,
-        limit         = req.limit,
+        source         = "postgresql",
+        pg_uri         = req.pg_uri,
+        user_question  = req.question,
+        limit          = req.limit,
+        react_enabled  = req.react,
+        react_max_attempts = 3,
     )
 
-    # Run the full pipeline through the Orchestrator
     state = _orchestrator.run_pg_query(state)
 
-    # Surface any error
     if state.execution_error:
         raise HTTPException(500, detail=state.execution_error)
 
@@ -323,20 +336,20 @@ def pg_nl_query_auto(req: PgNLQueryAutoRequest):
 
 
 # ─────────────────────────────────────────────────────────────
-# ✅ AGENTIC: Multi-question — splits then runs pipeline per question
+# ✅ AGENTIC: Multi-question
 # ─────────────────────────────────────────────────────────────
 @router.post("/nl-query-multi")
 def pg_nl_query_multi(req: PgNLQueryAutoRequest):
     """
     Multi-question mode — splits compound questions and runs a
-    separate Orchestrator pipeline for each one.
+    separate Orchestrator pipeline (with ReAct) for each one.
     """
     import re as _re
 
     SPLITTERS = [
         r"\band also\b", r"\balso show\b", r"\bas well as\b",
         r"\bfurthermore\b", r"\badditionally\b", r"\bplus\b",
-        r"(?<=\?)\s+",  # split after question marks
+        r"(?<=\?)\s+",
     ]
     raw_q = req.question.strip()
     questions = [raw_q]
@@ -345,7 +358,6 @@ def pg_nl_query_multi(req: PgNLQueryAutoRequest):
         if len(parts) > 1:
             questions = [p.strip().strip("?").strip() for p in parts if p.strip()]
             break
-    # Also split on "and show|list|give|top|total|count|average|find"
     if len(questions) == 1 and " and " in raw_q.lower():
         parts = _re.split(
             r"\s+and\s+(?=show|list|give|what|which|how|top|total|count|average|find)",
@@ -363,10 +375,12 @@ def pg_nl_query_multi(req: PgNLQueryAutoRequest):
 
     for q in questions[:5]:
         state = AgentState(
-            source        = "postgresql",
-            pg_uri        = req.pg_uri,
-            user_question = q,
-            limit         = req.limit,
+            source         = "postgresql",
+            pg_uri         = req.pg_uri,
+            user_question  = q,
+            limit          = req.limit,
+            react_enabled  = req.react,
+            react_max_attempts = 3,
         )
         state = _orchestrator.run_pg_query(state)
 
@@ -374,7 +388,7 @@ def pg_nl_query_multi(req: PgNLQueryAutoRequest):
             results.append({"question": q, "error": state.execution_error,
                              "count": 0, "data": []})
         else:
-            results.append({
+            result = {
                 "question":          q,
                 "sql":               state.generated_sql,
                 "tables_used":       state.tables_used,
@@ -384,7 +398,18 @@ def pg_nl_query_multi(req: PgNLQueryAutoRequest):
                 "execution_time_ms": state.execution_time_ms,
                 "summary":           state.summary,
                 "viz":               state.viz,
-            })
+                "profile":           state.profile,
+                "eda_insights":      state.eda_insights,
+            }
+            if state.react_attempts > 0:
+                result["react_trace"] = {
+                    "attempts":       state.react_attempts,
+                    "self_corrected": state.react_attempts > 1,
+                    "thoughts":       state.react_thoughts,
+                    "actions":        state.react_actions,
+                    "observations":   state.react_observations,
+                }
+            results.append(result)
 
     return {
         "source":        "postgresql_multi",
@@ -397,7 +422,7 @@ def pg_nl_query_multi(req: PgNLQueryAutoRequest):
 
 
 # ─────────────────────────────────────────────────────────────
-# Direct SQL (unchanged — bypasses agents intentionally)
+# Direct SQL (bypasses agents intentionally)
 # ─────────────────────────────────────────────────────────────
 @router.post("/direct-query")
 def pg_direct_query(req: PgDirectQueryRequest):
@@ -414,8 +439,6 @@ def pg_direct_query(req: PgDirectQueryRequest):
         ms = int((time.time() - t0) * 1000)
         results = [dict(r) for r in raw]
 
-        # Run post-processing pipeline for EDA profile + insights
-        from app.state.agent_state import AgentState
         post = AgentState(
             user_question = sql,
             results       = results,

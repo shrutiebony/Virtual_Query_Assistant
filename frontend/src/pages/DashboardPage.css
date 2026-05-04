@@ -1,0 +1,261 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap');
+
+.dash {
+  max-width: 1040px;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* ── Hero ── */
+.dash-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 36px 40px;
+  background: #0f1117;
+  border-radius: 16px;
+  margin-bottom: 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* subtle grid on hero */
+.dash-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* radial accent */
+.dash-hero::after {
+  content: '';
+  position: absolute;
+  top: -60px; right: -60px;
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, rgba(99,102,241,0.2) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.dash-hero-text { position: relative; z-index: 1; }
+
+.dash-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: #818cf8;
+  margin-bottom: 8px;
+}
+
+.dash-hero-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2.4rem;
+  color: #fff;
+  margin: 0 0 8px;
+  line-height: 1.15;
+  letter-spacing: -0.3px;
+}
+
+.dash-wave { font-style: normal; }
+
+.dash-hero-sub {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.45);
+  margin: 0;
+}
+
+/* stat cluster */
+.dash-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 18px 24px;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.dash-stat { text-align: center; }
+
+.dash-stat-val {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.6rem;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.dash-stat-val.dash-stat-active {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4ade80;
+  display: flex; align-items: center; gap: 5px;
+}
+
+.dash-stat-label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.dash-stat-div {
+  width: 1px;
+  height: 36px;
+  background: rgba(255,255,255,0.1);
+}
+
+/* ── No connections banner ── */
+.dash-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #fff;
+  border: 1.5px dashed #c7d2fe;
+  border-radius: 12px;
+  margin-bottom: 28px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.dash-banner:hover { border-color: #6366f1; background: #f5f3ff; }
+
+.dash-banner-icon {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  background: #eef2ff;
+  display: flex; align-items: center; justify-content: center;
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
+.dash-banner-title { font-size: 0.875rem; font-weight: 600; color: #0f1117; }
+.dash-banner-sub   { font-size: 0.78rem; color: #71717a; margin-top: 2px; }
+.dash-banner-arrow { margin-left: auto; color: #a1a1aa; flex-shrink: 0; }
+
+/* ── Sections ── */
+.dash-section { margin-bottom: 32px; }
+
+.dash-section-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: #a1a1aa;
+  margin-bottom: 14px;
+}
+
+/* ── Action cards ── */
+.dash-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.dash-action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1.5px solid #e4e4e7;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+  text-align: left;
+  font-family: 'DM Sans', sans-serif;
+}
+.dash-action:hover {
+  border-color: #d4d4d8;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.07);
+}
+.dash-action:active { transform: translateY(0); }
+
+.dash-action-icon {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-action-blue   .dash-action-icon { background: #eff6ff; color: #3b82f6; }
+.dash-action-green  .dash-action-icon { background: #f0fdf4; color: #22c55e; }
+.dash-action-amber  .dash-action-icon { background: #fffbeb; color: #f59e0b; }
+.dash-action-purple .dash-action-icon { background: #f5f3ff; color: #8b5cf6; }
+
+.dash-action-blue:hover   { border-color: #bfdbfe; }
+.dash-action-green:hover  { border-color: #bbf7d0; }
+.dash-action-amber:hover  { border-color: #fde68a; }
+.dash-action-purple:hover { border-color: #ddd6fe; }
+
+.dash-action-text { flex: 1; min-width: 0; }
+.dash-action-label { font-size: 0.875rem; font-weight: 600; color: #0f1117; margin-bottom: 2px; }
+.dash-action-desc  { font-size: 0.78rem; color: #71717a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-action-arrow { color: #d4d4d8; flex-shrink: 0; transition: transform 0.15s, color 0.15s; }
+.dash-action:hover .dash-action-arrow { transform: translateX(3px); color: #a1a1aa; }
+
+/* ── How it works ── */
+.dash-how {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: #fff;
+  border: 1.5px solid #e4e4e7;
+  border-radius: 14px;
+  padding: 28px 20px;
+  overflow: hidden;
+}
+
+.dash-how-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 16px;
+  gap: 10px;
+}
+
+.dash-how-num {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.8rem;
+  color: #e4e4e7;
+  line-height: 1;
+}
+
+.dash-how-icon {
+  width: 40px; height: 40px;
+  background: #f4f4f5;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: #6366f1;
+}
+
+.dash-how-title { font-size: 0.84rem; font-weight: 600; color: #0f1117; }
+.dash-how-desc  { font-size: 0.75rem; color: #71717a; line-height: 1.5; }
+
+.dash-how-connector {
+  width: 1px;
+  height: 48px;
+  background: linear-gradient(to bottom, transparent, #e4e4e7, transparent);
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .dash-hero { flex-direction: column; align-items: flex-start; }
+  .dash-stats-row { width: 100%; justify-content: space-around; }
+  .dash-actions { grid-template-columns: 1fr; }
+  .dash-how { flex-direction: column; }
+  .dash-how-connector { width: 48px; height: 1px; }
+}

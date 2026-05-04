@@ -30,7 +30,7 @@ class PgSafetyAgent:
             state.execution_error = "SafetyAgent: No SQL to validate."
             return state
 
-        if not sql.startswith("select"):
+        if not sql.startswith("select") and not sql.startswith("with"):
             state.execution_error = f"SafetyAgent: Query must start with SELECT. Got: {sql[:60]}"
             return state
 

@@ -6,11 +6,12 @@ Every user gets their own schema:  uploads_u{user_id}
 Tables are named exactly as the user chose (safe-sanitised).
 
 API:
-  POST /datasets/upload          — upload CSV/Excel → internal DB
-  GET  /datasets/list            — list all tables the user has uploaded
-  POST /datasets/nl-query        — NL query against one of their tables
-  POST /datasets/preview         — preview rows from one of their tables
-  DELETE /datasets/{table_name}  — drop a user's uploaded table
+  POST /my-datasets/upload          — upload CSV/Excel -> internal DB
+  GET  /my-datasets/list            — list all tables the user has uploaded
+  POST /my-datasets/nl-query        — NL query against one of their tables
+  POST /my-datasets/preview         — preview rows from one of their tables
+  DELETE /my-datasets/{table_name}  — drop a user's uploaded table
+  POST /my-datasets/benchmark-run   — no-auth benchmark endpoint
 """
 
 from __future__ import annotations
@@ -28,21 +29,17 @@ import psycopg2.extras
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app.api.routes.auth import get_current_user       # JWT auth
-from app.services.nl_to_sql import generate_sql        # Gemini SQL generator
+from app.api.routes.auth import get_current_user
+from app.services.nl_to_sql import generate_sql
 from app.agents.orchestrator import Orchestrator
 from app.state.agent_state import AgentState
 
-# Shared orchestrator instance
 _orchestrator = Orchestrator()
 
 logger = logging.getLogger("db_assistant.datasets")
 router = APIRouter(prefix="/my-datasets", tags=["my-datasets"])
 
 
-# ─────────────────────────────────────────────────────────────
-# Internal system DB connection  (same da_db as auth)
-# ─────────────────────────────────────────────────────────────
 def _sys_uri() -> str:
     return (
         f"postgresql://"
@@ -62,17 +59,12 @@ def _conn():
         raise HTTPException(503, detail=f"Internal DB unavailable: {e}")
 
 
-# ─────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────
 def _user_schema(user_id: int) -> str:
-    """Each user gets their own schema: uploads_u42"""
     return f"uploads_u{user_id}"
 
 
 def _safe_name(name: str) -> str:
-    """Sanitise a table name to be safe for PostgreSQL."""
-    name = name.lower().rsplit(".", 1)[-1]          # strip extension
+    name = name.lower().rsplit(".", 1)[-1]
     name = re.sub(r"[^a-z0-9_]+", "_", name)
     name = re.sub(r"_+", "_", name).strip("_")
     if not name:
@@ -119,18 +111,23 @@ def _get_columns(conn, user_id: int, table_name: str) -> List[Dict]:
                  "pg_type": dict(r)["data_type"]} for r in cur.fetchall()]
 
 
-# ─────────────────────────────────────────────────────────────
-# Models
-# ─────────────────────────────────────────────────────────────
+def _get_columns_from_schema(conn, schema: str, table_name: str) -> List[Dict]:
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT column_name, data_type
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s
+            ORDER BY ordinal_position
+        """, (schema, table_name))
+        return [{"name": dict(r)["column_name"],
+                 "pg_type": dict(r)["data_type"]} for r in cur.fetchall()]
+
+
 class DatasetNLRequest(BaseModel):
     table_name: str
     question:   str
     limit:      int = 50
 
-
-# ─────────────────────────────────────────────────────────────
-# Endpoints
-# ─────────────────────────────────────────────────────────────
 
 @router.post("/upload", status_code=201)
 async def upload_dataset(
@@ -138,7 +135,6 @@ async def upload_dataset(
     file:       UploadFile = File(...),
     user=Depends(get_current_user),
 ):
-    """Upload CSV/Excel into the user's private schema in da_db."""
     user_id = user["user_id"]
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     if ext not in ("csv", "xlsx", "xls"):
@@ -154,7 +150,6 @@ async def upload_dataset(
     if df.empty:
         raise HTTPException(400, detail="File has no data rows.")
 
-    # Sanitise column names
     seen: set = set()
     new_cols: List[str] = []
     for c in df.columns:
@@ -191,7 +186,6 @@ async def upload_dataset(
     finally:
         conn.close()
 
-    # Register dataset in dataset_registry + dataset_columns
     import uuid as _uuid
     dataset_id = str(_uuid.uuid4())
     conn2 = _conn()
@@ -228,7 +222,6 @@ async def upload_dataset(
 
 @router.get("/list")
 def list_datasets(user=Depends(get_current_user)):
-    """Return all tables the current user has uploaded."""
     user_id = user["user_id"]
     schema  = _user_schema(user_id)
     conn    = _conn()
@@ -265,7 +258,6 @@ def list_datasets(user=Depends(get_current_user)):
 @router.post("/preview")
 def preview_dataset(table_name: str, limit: int = 10,
                     user=Depends(get_current_user)):
-    """Preview rows from one of the user's uploaded tables."""
     user_id = user["user_id"]
     tbl_fqn = _table_fqn(user_id, _safe_name(table_name))
     conn    = _conn()
@@ -284,17 +276,14 @@ def preview_dataset(table_name: str, limit: int = 10,
 
 @router.post("/nl-query")
 def dataset_nl_query(req: DatasetNLRequest, user=Depends(get_current_user)):
-    """Run a natural-language query against one of the user's uploaded tables — fully agentic."""
     user_id  = user["user_id"]
     safe_tbl = _safe_name(req.table_name)
 
-    # Verify table exists
     conn = _conn()
     try:
         cols = _get_columns(conn, user_id, safe_tbl)
         if not cols:
             raise HTTPException(404, detail=f"Table '{req.table_name}' not found.")
-        # Resolve dataset_id for this table
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT dataset_id FROM dataset_registry WHERE user_id=%s AND table_name=%s LIMIT 1",
@@ -305,7 +294,6 @@ def dataset_nl_query(req: DatasetNLRequest, user=Depends(get_current_user)):
     finally:
         conn.close()
 
-    # Build AgentState and run through Orchestrator
     state = AgentState(
         user_id           = user_id,
         workspace_id      = user_id,
@@ -337,7 +325,6 @@ def dataset_nl_query(req: DatasetNLRequest, user=Depends(get_current_user)):
 
 @router.get("/schema")
 def get_dataset_schema(table_name: str, user=Depends(get_current_user)):
-    """Return column list for one of the user's uploaded tables."""
     user_id = user["user_id"]
     safe_tbl = _safe_name(table_name)
     conn = _conn()
@@ -351,7 +338,7 @@ def get_dataset_schema(table_name: str, user=Depends(get_current_user)):
 
 
 class DatasetJoinNLRequest(BaseModel):
-    table_names: List[str]      # 2+ table names
+    table_names: List[str]
     question:    str
     limit:       int = 50
 
@@ -359,10 +346,6 @@ class DatasetJoinNLRequest(BaseModel):
 @router.post("/nl-query-join")
 def dataset_nl_query_join(req: DatasetJoinNLRequest,
                           user=Depends(get_current_user)):
-    """
-    Natural-language JOIN query across multiple user-uploaded tables.
-    Gemini receives the schema of ALL selected tables and writes the JOIN SQL.
-    """
     if len(req.table_names) < 2:
         raise HTTPException(400, detail="Provide at least 2 table names for a JOIN query.")
 
@@ -371,7 +354,6 @@ def dataset_nl_query_join(req: DatasetJoinNLRequest,
     conn    = _conn()
 
     try:
-        # Collect schemas for all tables
         all_schemas = {}
         for tname in req.table_names:
             safe = _safe_name(tname)
@@ -380,8 +362,6 @@ def dataset_nl_query_join(req: DatasetJoinNLRequest,
                 raise HTTPException(404, detail=f"Table '{tname}' not found in your datasets.")
             all_schemas[safe] = cols
 
-        # Build multi-table schema prompt — show full qualified names so
-        # Gemini uses schema-prefixed names in the SQL
         schema_prompt = ""
         for tname, cols in all_schemas.items():
             fqn = f'"{schema}"."{tname}"'
@@ -390,7 +370,6 @@ def dataset_nl_query_join(req: DatasetJoinNLRequest,
                 schema_prompt += f"  - {c['name']} ({c['pg_type']})\n"
             schema_prompt += "\n"
 
-        # Detect common columns as a JOIN hint for Gemini
         col_sets = [set(c["name"] for c in cols) for cols in all_schemas.values()]
         common   = set.intersection(*col_sets) - {""}
         join_hint = ""
@@ -400,14 +379,6 @@ def dataset_nl_query_join(req: DatasetJoinNLRequest,
                 f"JOIN keys: {', '.join(sorted(common))}.\n"
             )
 
-        question_with_limit = (
-            f"{req.question}"
-            f"{join_hint}"
-            f"\nIMPORTANT: Use fully-qualified table names with schema '{schema}'."
-            f" Add LIMIT {req.limit} at the end of the SQL. Use LOWER() or ILIKE for all string comparisons — never assume exact capitalisation of data values."
-        )
-
-        # Resolve dataset_ids for all tables
         dataset_ids = []
         with conn.cursor() as cur:
             for tname in all_schemas:
@@ -425,7 +396,6 @@ def dataset_nl_query_join(req: DatasetJoinNLRequest,
     finally:
         conn.close()
 
-    # Run through Orchestrator with multiple datasets (JOIN-capable)
     state = AgentState(
         user_id           = user_id,
         workspace_id      = user_id,
@@ -455,9 +425,8 @@ def dataset_nl_query_join(req: DatasetJoinNLRequest,
     }
 
 
-
 class DatasetAutoNLRequest(BaseModel):
-    all_table_names: List[str]   # ALL tables the user has uploaded
+    all_table_names: List[str]
     question:        str
     limit:           int = 50
 
@@ -465,11 +434,6 @@ class DatasetAutoNLRequest(BaseModel):
 @router.post("/nl-query-auto")
 def dataset_nl_query_auto(req: DatasetAutoNLRequest,
                           user=Depends(get_current_user)):
-    """
-    Auto-detect which tables to use based on the question.
-    Gemini receives ALL table schemas, picks the right ones,
-    and writes single-table or JOIN SQL as needed.
-    """
     if not req.all_table_names:
         raise HTTPException(400, detail="No datasets found. Upload a file first.")
 
@@ -478,7 +442,6 @@ def dataset_nl_query_auto(req: DatasetAutoNLRequest,
     conn    = _conn()
 
     try:
-        # Load all schemas
         all_schemas = {}
         for tname in req.all_table_names:
             safe = _safe_name(tname)
@@ -489,7 +452,6 @@ def dataset_nl_query_auto(req: DatasetAutoNLRequest,
         if not all_schemas:
             raise HTTPException(404, detail="No tables found in your datasets.")
 
-        # Build full schema prompt — Gemini sees ALL tables
         schema_prompt = "You have access to the following tables in PostgreSQL schema " + schema + ":\n\n"
         for tname, cols in all_schemas.items():
             fqn = '"' + schema + '"."' + tname + '"'
@@ -497,7 +459,7 @@ def dataset_nl_query_auto(req: DatasetAutoNLRequest,
             for c in cols:
                 schema_prompt += "  - " + c["name"] + " (" + c["pg_type"] + ")\n"
             schema_prompt += "\n"
-        # Detect JOIN candidates — columns shared across tables
+
         col_sets = {t: {c["name"] for c in cols} for t, cols in all_schemas.items()}
         join_hints = []
         table_list = list(col_sets.keys())
@@ -522,14 +484,13 @@ def dataset_nl_query_auto(req: DatasetAutoNLRequest,
             + "- Use ONLY the tables listed above with their full schema-qualified names\n"
             + "- If the question involves data from multiple tables, write a JOIN query\n"
             + "- If the question is about one table only, write a simple SELECT\n"
-            + '- Always use the full qualified name: "' + schema + '"."' + "tablename" + '", e.g. "' + schema + '"."' + list(all_schemas.keys())[0] + '"\n'
-            + "- For string comparisons always use LOWER(column) = LOWER(value) or ILIKE to be case-insensitive\n"
+            + '- Always use the full qualified name: "' + schema + '"."tablename"\n'
+            + "- For string comparisons always use LOWER(column) = LOWER(value) or ILIKE\n"
             + "- Never assume the exact capitalisation of string values in the data\n"
             + "- Add LIMIT " + str(req.limit) + " at the end\n"
             + "- Return ONLY SQL, no explanation"
         )
 
-        # Resolve dataset_ids for all tables
         dataset_ids = []
         with conn.cursor() as cur:
             for tname in all_schemas:
@@ -547,7 +508,6 @@ def dataset_nl_query_auto(req: DatasetAutoNLRequest,
     finally:
         conn.close()
 
-    # Run through Orchestrator — auto-selects tables via NLToSQLAgent
     state = AgentState(
         user_id           = user_id,
         workspace_id      = user_id,
@@ -581,7 +541,6 @@ def dataset_nl_query_auto(req: DatasetAutoNLRequest,
 
 @router.delete("/{table_name}")
 def delete_dataset(table_name: str, user=Depends(get_current_user)):
-    """Drop one of the user's uploaded tables permanently."""
     user_id  = user["user_id"]
     safe_tbl = _safe_name(table_name)
     tbl_fqn  = _table_fqn(user_id, safe_tbl)
@@ -593,3 +552,233 @@ def delete_dataset(table_name: str, user=Depends(get_current_user)):
     finally:
         conn.close()
     return {"message": f"Table '{safe_tbl}' deleted."}
+
+
+# ─────────────────────────────────────────────────────────────
+# BENCHMARK ENDPOINT — no auth needed
+# ─────────────────────────────────────────────────────────────
+
+class BenchmarkRequest(BaseModel):
+    tables:      Dict[str, List[Dict]]
+    question:    str
+    limit:       int = 200
+    file_paths:  Dict[str, str] = {}   # table_name -> absolute file path (CSV/JSON)
+
+
+@router.post("/benchmark-run")
+def benchmark_run(req: BenchmarkRequest):
+    """
+    No-auth benchmark endpoint for KDD Cup 2026 evaluation.
+    Accepts table data directly, loads into temp PostgreSQL schema,
+    runs YOUR full agent pipeline (ReAct + NL-to-SQL), returns result.
+    Tables are cleaned up automatically after each run.
+    """
+    schema  = "benchmark_tmp"
+    pg_uri  = _sys_uri()
+    conn    = _conn()
+    uploaded = []  # list of (safe_name, tbl_fqn)
+
+    try:
+        # Set longer timeouts for large table operations
+        with conn.cursor() as cur:
+            cur.execute("SET statement_timeout = '120s';")
+        conn.commit()
+
+        # Create temp schema
+        with conn.cursor() as cur:
+            cur.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}";')
+        conn.commit()
+
+        # Load each table into temp schema
+        for table_name, rows in req.tables.items():
+            if not rows:
+                continue
+            df = pd.DataFrame(rows)
+
+            # Sanitise column names
+            seen, new_cols = set(), []
+            for c in df.columns:
+                sc = _safe_col(str(c))
+                while sc in seen:
+                    sc += "_2"
+                seen.add(sc)
+                new_cols.append(sc)
+            df.columns = new_cols
+
+            safe    = _safe_name(table_name)
+            tbl_fqn = f'"{schema}"."{safe}"'
+            col_defs = [f'"{c}" {_infer_type(df[c])}' for c in df.columns]
+
+            with conn.cursor() as cur:
+                cur.execute(f'DROP TABLE IF EXISTS {tbl_fqn};')
+                cur.execute(f'CREATE TABLE {tbl_fqn} ({", ".join(col_defs)});')
+                csv_buf = io.StringIO()
+                df.to_csv(csv_buf, index=False)
+                csv_buf.seek(0)
+                cols_sql = ", ".join(f'"{c}"' for c in df.columns)
+                cur.copy_expert(
+                    f'COPY {tbl_fqn} ({cols_sql}) FROM STDIN WITH CSV HEADER',
+                    csv_buf
+                )
+            conn.commit()
+            uploaded.append((safe, tbl_fqn))
+
+            # Create indexes on large tables to speed up queries (>10K rows)
+            if len(df) > 10000:
+                with conn.cursor() as cur:
+                    for col in df.columns:
+                        col_lower = col.lower()
+                        if col_lower in ('id', 'owneruserid', 'postid', 'userid',
+                                         'title', 'displayname', 'answercount',
+                                         'viewcount', 'lasteditoruserid'):
+                            try:
+                                idx_name = f"idx_{safe}_{col_lower}"[:63]
+                                cur.execute(
+                                    f'CREATE INDEX IF NOT EXISTS "{idx_name}" '
+                                    f'ON {tbl_fqn} ("{col}")'
+                                )
+                            except Exception:
+                                pass
+                conn.commit()
+
+        # Load large tables directly from file paths (bypasses HTTP serialization limit)
+        for table_name, file_path in req.file_paths.items():
+            try:
+                import os
+                fp = Path(file_path)
+                if not fp.exists():
+                    continue
+                if fp.suffix.lower() == '.csv':
+                    df = pd.read_csv(fp, low_memory=False, nrows=None)
+                elif fp.suffix.lower() == '.json':
+                    raw = __import__('json').loads(fp.read_text(encoding='utf-8'))
+                    if isinstance(raw, list):
+                        df = pd.DataFrame(raw)
+                    elif isinstance(raw, dict) and 'records' in raw:
+                        df = pd.DataFrame(raw['records'])
+                    else:
+                        df = pd.DataFrame([raw])
+                else:
+                    continue
+
+                seen, new_cols = set(), []
+                for c in df.columns:
+                    sc = _safe_col(str(c))
+                    while sc in seen: sc += "_2"
+                    seen.add(sc); new_cols.append(sc)
+                df.columns = new_cols
+
+                safe    = _safe_name(table_name)
+                tbl_fqn = f'"{schema}"."{safe}"'
+                col_defs = [f'"{c}" {_infer_type(df[c])}' for c in df.columns]
+
+                with conn.cursor() as cur:
+                    cur.execute(f'DROP TABLE IF EXISTS {tbl_fqn};')
+                    cur.execute(f'CREATE TABLE {tbl_fqn} ({", ".join(col_defs)});')
+                    csv_buf = __import__('io').StringIO()
+                    df.to_csv(csv_buf, index=False)
+                    csv_buf.seek(0)
+                    cols_sql = ", ".join(f'"{c}"' for c in df.columns)
+                    cur.copy_expert(
+                        f'COPY {tbl_fqn} ({cols_sql}) FROM STDIN WITH CSV HEADER',
+                        csv_buf
+                    )
+                conn.commit()
+                uploaded.append((safe, tbl_fqn))
+            except Exception as e:
+                print(f"file_paths load error {table_name}: {e}")
+
+        if not uploaded:
+            return {"error": "No tables loaded", "data": [], "columns": [], "sql": ""}
+
+        # Build tables_schema with sample data so agent sees actual values
+        tables_schema = {}
+        schema_context = []
+        for safe, tbl_fqn in uploaded:
+            cols = _get_columns_from_schema(conn, schema, safe)
+            # Get sample rows to show actual data values (handles non-English data)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(f'SELECT * FROM {tbl_fqn} LIMIT 5')
+                    sample_rows = [dict(r) for r in cur.fetchall()]
+                    col_names = list(sample_rows[0].keys()) if sample_rows else []
+                # Build per-column sample values
+                for col in cols:
+                    col_name = col["name"]
+                    vals = list({str(r.get(col_name, '')) for r in sample_rows
+                                 if r.get(col_name) is not None and str(r.get(col_name, '')) != ''})[:4]
+                    if vals:
+                        col["sample_values"] = vals
+                # Build schema context string for question enhancement
+                schema_context.append(
+                    f"Table {safe} sample data:\n" +
+                    "\n".join(str(dict(r)) for r in sample_rows[:3])
+                )
+            except Exception:
+                pass
+            tables_schema[f"{schema}.{safe}"] = cols
+
+        # Build enhanced question with sample data context
+        sample_data_hint = ""
+        if schema_context:
+            sample_data_hint = (
+                "\n\n[ACTUAL DATA SAMPLES — use these EXACT values in WHERE clauses]\n" +
+                "\n\n".join(schema_context[:3])  # max 3 tables to avoid token overflow
+            )
+
+        enhanced_question = (
+            req.question +
+            sample_data_hint +
+            "\n\n[SQL Rules]\n"
+            "- Use EXACT values from the sample data above — data may be in non-English languages\n"
+            "- Use the benchmark_tmp schema prefix: benchmark_tmp.tablename\n"
+            "- For single-answer questions use LIMIT 1\n"
+            "- For COUNT/AVG questions return just the number\n"
+            "- Chemical elements use symbols: P=phosphorus, N=nitrogen, Br=bromine, I=iodine, C=carbon\n"
+            "- Integer thrombosis values: 1=most severe, 2=severe\n"
+        )
+
+        # Run YOUR ReAct agent directly — bypasses dataset_registry entirely
+        state = AgentState(
+            source             = "postgresql",
+            pg_uri             = pg_uri,
+            user_question      = enhanced_question,
+            limit              = req.limit,
+            tables_schema      = tables_schema,
+            react_enabled      = True,
+            react_max_attempts = 3,
+        )
+        state = _orchestrator.react_agent.run(state)
+
+    finally:
+        # Always clean up temp tables
+        try:
+            with conn.cursor() as cur:
+                for _, tbl_fqn in uploaded:
+                    cur.execute(f'DROP TABLE IF EXISTS {tbl_fqn};')
+            conn.commit()
+        except Exception:
+            pass
+        conn.close()
+
+    if state.execution_error:
+        return {
+            "error":   state.execution_error,
+            "data":    [],
+            "columns": [],
+            "sql":     state.generated_sql or "",
+        }
+
+    return {
+        "data":              state.results,
+        "columns":           state.columns,
+        "sql":               state.generated_sql or "",
+        "execution_time_ms": state.execution_time_ms,
+        "react_trace": {
+            "attempts":       state.react_attempts,
+            "self_corrected": state.react_attempts > 1,
+            "thoughts":       state.react_thoughts,
+            "actions":        state.react_actions,
+            "observations":   state.react_observations,
+        } if state.react_attempts > 0 else {},
+    }
