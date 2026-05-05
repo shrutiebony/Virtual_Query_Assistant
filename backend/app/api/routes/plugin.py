@@ -170,8 +170,9 @@ async def plugin_query(request: Request):
 
     rows = result.get("data", [])
     result_url = f"{BACKEND_URL}/results/{result_id}"
+    error = result.get("error", "")
 
-    return {
+    response_body: Dict[str, Any] = {
         "question":    question,
         "source":      source,
         "sql":         result.get("sql", ""),
@@ -180,19 +181,36 @@ async def plugin_query(request: Request):
         "result_url":  result_url,
         "message":     f"Query returned {len(rows)} rows. [View Full Results]({result_url})",
     }
+    if error:
+        response_body["error"] = error
+    return response_body
+
+
+def _strip_sql(text: str) -> str:
+    """Strip markdown code fences from a Gemini SQL response."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # drop first line (```sql or ```) and last line if it's ```
+        inner = lines[1:]
+        if inner and inner[-1].strip() == "```":
+            inner = inner[:-1]
+        text = "\n".join(inner).strip()
+    return text
 
 
 def _run_nl_query_on_pg(question: str, connection_string: str) -> Dict:
     """Run NL query against a PostgreSQL database."""
+    import logging
+    logger = logging.getLogger("db_assistant.plugin")
     try:
         import psycopg2
+        import psycopg2.extras
         import os
 
-        # Get schema
-        conn = psycopg2.connect(connection_string)
+        conn = psycopg2.connect(connection_string, cursor_factory=psycopg2.extras.RealDictCursor)
         cur = conn.cursor()
 
-        # Get tables and columns
         cur.execute("""
             SELECT table_name, column_name, data_type
             FROM information_schema.columns
@@ -201,49 +219,44 @@ def _run_nl_query_on_pg(question: str, connection_string: str) -> Dict:
         """)
         schema_rows = cur.fetchall()
 
-        # Build schema string for Gemini
-        schema = {}
-        for table, col, dtype in schema_rows:
-            if table not in schema:
-                schema[table] = []
-            schema[table].append(f"{col} ({dtype})")
+        schema: Dict[str, list] = {}
+        for row in schema_rows:
+            t = row["table_name"]
+            if t not in schema:
+                schema[t] = []
+            schema[t].append(f"{row['column_name']} ({row['data_type']})")
 
-        schema_str = "\n".join([
-            f"Table {t}: {', '.join(cols)}"
-            for t, cols in schema.items()
-        ])
+        schema_str = "\n".join(
+            f"Table {t}: {', '.join(cols)}" for t, cols in schema.items()
+        )
 
-        # Generate SQL using Gemini
         import google.generativeai as genai
         genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
         model = genai.GenerativeModel("gemini-2.5-flash")
 
-        prompt = f"""You are a PostgreSQL expert. Generate ONLY a valid SQL query, no explanation.
-
-Database schema:
-{schema_str}
-
-Question: {question}
-
-Rules:
-- Return ONLY the SQL query
-- Use standard PostgreSQL syntax
-- Add LIMIT 100 unless counting
-- No markdown, no explanation
-"""
+        prompt = (
+            "You are a PostgreSQL expert. Return ONLY a valid SQL query, no explanation, "
+            "no markdown fences.\n\n"
+            f"Database schema:\n{schema_str}\n\n"
+            f"Question: {question}\n\n"
+            "Rules:\n"
+            "- Return ONLY the SQL query\n"
+            "- Use standard PostgreSQL syntax\n"
+            "- Add LIMIT 100 unless the question asks for a count or aggregate\n"
+            "- No markdown, no code fences, no explanation"
+        )
         response = model.generate_content(prompt)
-        sql = response.text.strip().strip("```sql").strip("```").strip()
+        sql = _strip_sql(response.text)
 
-        # Execute SQL
         cur.execute(sql)
         columns = [desc[0] for desc in cur.description] if cur.description else []
-        rows = cur.fetchall()
+        rows = [dict(r) for r in cur.fetchall()]
         conn.close()
 
-        data = [dict(zip(columns, row)) for row in rows]
-        return {"sql": sql, "data": data, "columns": columns, "error": ""}
+        return {"sql": sql, "data": rows, "columns": columns, "error": ""}
 
     except Exception as e:
+        logger.error("_run_nl_query_on_pg failed: %s", e, exc_info=True)
         return {"sql": "", "data": [], "columns": [], "error": str(e)}
 
 
