@@ -1,0 +1,10 @@
+{
+  "name": "db-assistant",
+  "version": "1.0.0",
+  "description": "Query any database using natural language.",
+  "author": {
+    "name": "SJSU CMPE 295B",
+    "email": "rutujabpatil839@gmail.com"
+  },
+  "homepage": "https://db-assistant-frontend-105401535311.us-central1.run.app"
+}
