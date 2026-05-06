@@ -31,7 +31,7 @@ const CLI_STEPS = [
 const CLI_COMMANDS = [
   { cmd: '/db-assistant:query How many employees per department?', desc: 'Query the demo database' },
   { cmd: '/db-assistant:connect postgresql://user:pass@host/db',   desc: 'Connect your own database' },
-  { cmd: '/db-assistant:benchmark',                                desc: 'Show KDD Cup 2026 accuracy' },
+  { cmd: '/db-assistant:benchmark',                                desc: 'Show accuracy benchmark results' },
 ];
 
 const DEMO_TABLES = ['employees — 50 rows', 'departments — 10 rows', 'orders — 200 rows', 'sales_performance — 40 rows'];
@@ -110,11 +110,6 @@ export default function PluginPage() {
         </div>
 
         <div className="plugin-hero-stats">
-          <div className="plugin-stat">
-            <div className="plugin-stat-val">82%</div>
-            <div className="plugin-stat-label">KDD Cup 2026</div>
-          </div>
-          <div className="plugin-stat-div" />
           <div className="plugin-stat">
             <div className="plugin-stat-val">4</div>
             <div className="plugin-stat-label">Demo tables</div>
