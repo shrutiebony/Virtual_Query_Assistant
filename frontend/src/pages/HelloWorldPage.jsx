@@ -31,8 +31,9 @@ function SqlBlock({ sql, copied, onCopy }) {
 }
 
 function ResultTable({ data, columns, maxRows = 8 }) {
-  if (!data?.length) return null;
-  const cols = columns?.length ? columns : Object.keys(data[0]);
+  if (!Array.isArray(data) || !data.length) return null;
+  const first = data.find(r => r && typeof r === 'object') || {};
+  const cols = columns?.length ? columns : Object.keys(first);
   const rows = data.slice(0, maxRows);
   return (
     <div className="hw-table-wrap">
@@ -306,23 +307,39 @@ function Level3() {
         },
         body: JSON.stringify({ pg_uri: NEON, question: q, limit: 50, max_subtasks: 4 }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Swarm query failed');
-      }
-      const data = await res.json();
+
+      let data;
+      try { data = await res.json(); }
+      catch(_) { throw new Error(`Server error (${res.status})`); }
+
+      if (!res.ok) throw new Error(data?.detail || data?.error || `Request failed (${res.status})`);
+
       const totalMs = Date.now() - t0;
+
+      // Pull first successful subtask result for display
+      const firstOk = (data.subtask_results || []).find(r => !r.error) || data.subtask_results?.[0] || {};
+      const summaryText = typeof data.summary === 'string'
+        ? data.summary
+        : data.summary?.text || data.summary?.answer || data.summary?.summary || '';
 
       // Mark all agents done with staggered finish
       AGENTS.forEach((a, i) => {
-        setTimeout(() => {
-          setAS(prev => ({ ...prev, [a.id]: 'done' }));
-        }, i * 120);
+        setTimeout(() => setAS(prev => ({ ...prev, [a.id]: 'done' })), i * 120);
       });
 
-      setTimeout(() => setR({ ...data, totalMs }), AGENTS.length * 120 + 200);
+      setTimeout(() => setR({
+        sql:        firstOk.sql        || '',
+        data:       firstOk.data       || [],
+        columns:    firstOk.columns    || [],
+        row_count:  firstOk.row_count  ?? (firstOk.data?.length ?? 0),
+        agents_run: data.agents_run    ?? AGENTS.length,
+        succeeded:  data.agents_succeeded ?? AGENTS.length,
+        summary:    summaryText,
+        totalMs,
+      }), AGENTS.length * 120 + 200);
+
     } catch(e) {
-      setE(e.message);
+      setE(e.message || 'Swarm query failed');
       AGENTS.forEach(a => setAS(prev => ({ ...prev, [a.id]: 'error' })));
     } finally {
       setL(false);
@@ -386,19 +403,19 @@ function Level3() {
             <span className="hw-swarm-time">{result.totalMs}ms total</span>
           </div>
           <div className="hw-stats-row">
-            <div className="hw-stat"><span>{result.total_rows ?? result.count ?? result.data?.length ?? 0}</span>Rows</div>
-            <div className="hw-stat"><span>{AGENTS.length}</span>Agents</div>
+            <div className="hw-stat"><span>{result.row_count ?? 0}</span>Rows</div>
+            <div className="hw-stat"><span>{result.agents_run ?? AGENTS.length}</span>Agents run</div>
             <div className="hw-stat"><span className="hw-stat-ok">✓</span>Parallel</div>
           </div>
           <SqlBlock sql={result.sql} copied={copied}
-            onCopy={() => { navigator.clipboard.writeText(result.sql); setC(true); setTimeout(()=>setC(false),2000); }} />
-          <ResultTable data={result.data || result.results} columns={result.columns} />
-          {result.summary && (
+            onCopy={() => { navigator.clipboard.writeText(result.sql || ''); setC(true); setTimeout(()=>setC(false),2000); }} />
+          <ResultTable data={result.data} columns={result.columns} />
+          {result.summary ? (
             <div className="hw-insight">
               <div className="hw-insight-label">💡 AI Insight</div>
-              <div className="hw-insight-text">{result.summary}</div>
+              <div className="hw-insight-text">{String(result.summary)}</div>
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>
