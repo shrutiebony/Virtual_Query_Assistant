@@ -116,11 +116,6 @@ export default function PluginPage() {
         </div>
         <div className="plugin-hero-stats">
           <div className="plugin-hstat">
-            <div className="plugin-hstat-val">4</div>
-            <div className="plugin-hstat-key">Demo tables</div>
-          </div>
-          <div className="plugin-hstat-sep" />
-          <div className="plugin-hstat">
             <div className="plugin-hstat-val plugin-hstat-live">
               <CheckCircle size={13} /> Live
             </div>
