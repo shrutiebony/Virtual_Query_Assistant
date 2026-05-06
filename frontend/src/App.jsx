@@ -12,6 +12,7 @@ import ConnectionsPage from './pages/ConnectionsPage';
 import MySQLPage from './pages/MySQLPage';
 import AppLayout    from './components/layout/AppLayout';
 import BenchmarkDashboard from './pages/BenchmarkDashboard';
+import PluginPage from './components/PluginPage';
 
 
 function PrivateRoute({ children }) {
@@ -36,8 +37,11 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Public routes — no login required */}
           <Route path="/login"    element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+
+          {/* Private routes — login required */}
           <Route path="/" element={<PrivateRoute><AppLayout /></PrivateRoute>}>
             <Route index              element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard"   element={<DashboardPage />} />
@@ -45,10 +49,10 @@ export default function App() {
             <Route path="query/mongo"    element={<MongoPage />} />
             <Route path="datasets"    element={<DatasetsPage />} />
             <Route path="connections" element={<ConnectionsPage />} />
-            <Route path="/mysql" element={<MySQLPage />} />
-            <Route path="swarm" element={<SwarmPage />} />
-            // inside Routes:
-            <Route path="benchmark" element={<BenchmarkDashboard />} />
+            <Route path="/mysql"      element={<MySQLPage />} />
+            <Route path="swarm"       element={<SwarmPage />} />
+            <Route path="benchmark"   element={<BenchmarkDashboard />} />
+            <Route path="plugin"      element={<PluginPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

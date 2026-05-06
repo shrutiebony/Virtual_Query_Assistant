@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, Database, Leaf, FolderOpen,
-  Link2, LogOut, ChevronRight, Zap, BarChart2,
+  Link2, LogOut, ChevronRight, Zap, BarChart2, Plug,
 } from 'lucide-react';
 import './AppLayout.css';
 
@@ -16,6 +16,7 @@ const NAV = [
   { to: '/connections',    icon: Link2,           label: 'Connections' },
   { to: '/swarm', icon: Zap, label: 'Swarm Agents' },
   { to: '/benchmark', icon: BarChart2, label: 'Benchmark' },
+  { to: '/plugin', icon: Plug, label: 'Claude Plugin' },
 ];
 
 export default function AppLayout() {
