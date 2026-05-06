@@ -7,11 +7,22 @@ import {
 } from 'lucide-react';
 import './AppLayout.css';
 
+/* MySQL official dolphin logo — simplified SVG, currentColor */
+function MySQLIcon({ size = 17, ...props }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M17.9 2.3C16.5 1.5 14.8 1 13 1 8.6 1 5 4.6 5 9c0 2.3.9 4.4 2.4 5.9L6.2 17 5 19h2.5l.6-1.4c1.1.6 2.3.9 3.6.9h.8l-.5 1.5H14l-.5-1.7c1.2-.3 2.3-.9 3.2-1.7L17 19h2.5l-1.1-2-1.2-2.1C18.6 13.5 19.5 11.4 19.5 9c0-2.8-1.2-5.3-3-7 .6-.4 1.1-.5 1.4-.7z"/>
+      <path d="M20.5 3.5c-.8.4-1.7 1-2.4 1.8C19.3 6.6 20 7.8 20 9.5c0 .5-.1 1-.2 1.5l1.7 2.5C22.4 12 23 10.6 23 9c0-2.2-1-4.1-2.5-5.5z" opacity=".6"/>
+      <circle cx="14.5" cy="7.5" r="1.2"/>
+    </svg>
+  );
+}
+
 const NAV = [
   { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/query/postgres', icon: Database,        label: 'PostgreSQL' },
   { to: '/query/mongo',    icon: Leaf,            label: 'MongoDB' },
-  { to: '/mysql',          icon: Database,        label: 'MySQL' },
+  { to: '/mysql',          icon: MySQLIcon,       label: 'MySQL' },
   { to: '/datasets',       icon: FolderOpen,      label: 'Datasets' },
   { to: '/connections',    icon: Link2,           label: 'Connections' },
   { to: '/swarm', icon: Zap, label: 'Swarm Agents' },
