@@ -1,44 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, PieChart, Pie, LineChart, Line, Area, AreaChart
+  ResponsiveContainer, Cell, PieChart, Pie,
 } from 'recharts';
+import './BenchmarkDashboard.css';
 
-// ── Theme ──────────────────────────────────────────────────────────────
-const T = {
-  bg:        '#0a0e1a',
-  surface:   '#111827',
-  surface2:  '#1a2234',
-  border:    '#1e2d45',
-  accent:    '#3b82f6',
-  accentGlow:'rgba(59,130,246,0.15)',
-  pass:      '#10b981',
-  partial:   '#f59e0b',
-  fail:      '#ef4444',
-  error:     '#8b5cf6',
-  text:      '#f1f5f9',
-  textMuted: '#64748b',
-  textDim:   '#94a3b8',
+// ── Status / difficulty config ────────────────────────────────────────
+const STATUS_CONFIG = {
+  PASS:    { color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', icon: '✓', label: 'Passed'  },
+  PARTIAL: { color: '#d97706', bg: '#fffbeb', border: '#fde68a', icon: '◑', label: 'Partial' },
+  FAIL:    { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: '✗', label: 'Failed'  },
+  ERROR:   { color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe', icon: '⚡', label: 'Error'  },
 };
 
 const DIFF_COLORS = {
-  easy:    '#10b981',
-  medium:  '#3b82f6',
-  hard:    '#f59e0b',
-  extreme: '#ef4444',
+  easy:    '#16a34a',
+  medium:  '#2563eb',
+  hard:    '#d97706',
+  extreme: '#dc2626',
 };
 
-const STATUS_CONFIG = {
-  PASS:    { color: T.pass,    bg: 'rgba(16,185,129,0.1)',  icon: '✓', label: 'Passed'  },
-  PARTIAL: { color: T.partial, bg: 'rgba(245,158,11,0.1)',  icon: '◑', label: 'Partial' },
-  FAIL:    { color: T.fail,    bg: 'rgba(239,68,68,0.1)',   icon: '✗', label: 'Failed'  },
-  ERROR:   { color: T.error,   bg: 'rgba(139,92,246,0.1)',  icon: '⚡', label: 'Error'  },
-};
+const DIFF_LABELS = { easy: 'Easy', medium: 'Medium', hard: 'Hard', extreme: 'Extreme' };
 
 async function fetchResults() {
-  const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+  const API = process.env.REACT_APP_API_URL || 'http://localhost:8000';
   const token = localStorage.getItem('token');
-  const resp = await fetch(`${API_BASE}/benchmark/results`, {
+  const resp = await fetch(`${API}/benchmark/results`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!resp.ok) throw new Error('no_results');
@@ -49,71 +36,51 @@ async function fetchResults() {
 function AnimatedNumber({ value, suffix = '' }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
-    let start = 0;
+    let cur = 0;
     const end = parseFloat(value);
-    const duration = 1200;
-    const step = end / (duration / 16);
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= end) { setDisplay(end); clearInterval(timer); }
-      else setDisplay(parseFloat(start.toFixed(1)));
+    const step = end / (1200 / 16);
+    const t = setInterval(() => {
+      cur += step;
+      if (cur >= end) { setDisplay(end); clearInterval(t); }
+      else setDisplay(parseFloat(cur.toFixed(1)));
     }, 16);
-    return () => clearInterval(timer);
+    return () => clearInterval(t);
   }, [value]);
   return <>{display}{suffix}</>;
 }
 
-// ── Circular accuracy gauge ───────────────────────────────────────────
+// ── Accuracy ring ─────────────────────────────────────────────────────
 function AccuracyRing({ value }) {
-  const r = 70;
-  const circ = 2 * Math.PI * r;
+  const r = 70, circ = 2 * Math.PI * r;
   const stroke = circ * 0.75 * (value / 100);
-  const color = value >= 80 ? T.pass : value >= 60 ? T.partial : T.fail;
-
+  const color = value >= 80 ? '#16a34a' : value >= 60 ? '#d97706' : '#dc2626';
   return (
     <div style={{ position: 'relative', width: 180, height: 160 }}>
       <svg width={180} height={160} style={{ overflow: 'visible' }}>
         <defs>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          <filter id="ring-glow">
+            <feGaussianBlur stdDeviation="2" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-        {/* Track */}
-        <circle cx={90} cy={100} r={r} fill="none"
-          stroke={T.border} strokeWidth={8}
-          strokeDasharray={`${circ * 0.75} ${circ}`}
-          strokeLinecap="round"
-          transform="rotate(-225 90 100)"
-        />
-        {/* Progress */}
-        <circle cx={90} cy={100} r={r} fill="none"
-          stroke={color} strokeWidth={8}
-          strokeDasharray={`${stroke} ${circ}`}
-          strokeLinecap="round"
-          transform="rotate(-225 90 100)"
-          filter="url(#glow)"
-          style={{ transition: 'stroke-dasharray 1.5s cubic-bezier(0.4,0,0.2,1)' }}
-        />
-        {/* Dot at end */}
-        <circle cx={90} cy={30} r={4} fill={color} filter="url(#glow)"
+        <circle cx={90} cy={100} r={r} fill="none" stroke="rgba(255,255,255,0.15)"
+          strokeWidth={8} strokeDasharray={`${circ * 0.75} ${circ}`}
+          strokeLinecap="round" transform="rotate(-225 90 100)" />
+        <circle cx={90} cy={100} r={r} fill="none" stroke={color}
+          strokeWidth={8} strokeDasharray={`${stroke} ${circ}`}
+          strokeLinecap="round" transform="rotate(-225 90 100)"
+          filter="url(#ring-glow)"
+          style={{ transition: 'stroke-dasharray 1.5s cubic-bezier(0.4,0,0.2,1)' }} />
+        <circle cx={90} cy={30} r={4} fill={color}
           style={{ transformOrigin: '90px 100px',
-            transform: `rotate(${-225 + (value/100)*270}deg)` }}
-        />
+            transform: `rotate(${-225 + (value / 100) * 270}deg)` }} />
       </svg>
-      <div style={{
-        position: 'absolute', top: '40%', left: '50%',
-        transform: 'translate(-50%, -50%)', textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 42, fontWeight: 900, color, lineHeight: 1,
-          fontVariantNumeric: 'tabular-nums',
-          textShadow: `0 0 20px ${color}60` }}>
+      <div className="bm-ring-label">
+        <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 40,
+          fontWeight: 900, color, lineHeight: 1 }}>
           <AnimatedNumber value={value} suffix="%" />
         </div>
-        <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4,
-          letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          Accuracy
-        </div>
+        <div className="bm-ring-sub">Accuracy</div>
       </div>
     </div>
   );
@@ -122,211 +89,117 @@ function AccuracyRing({ value }) {
 // ── Metric card ───────────────────────────────────────────────────────
 function MetricCard({ label, value, sub, color, icon }) {
   return (
-    <div style={{
-      background: T.surface,
-      border: `1px solid ${T.border}`,
-      borderRadius: 12,
-      padding: '18px 20px',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      {/* Glow accent */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-        background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
-      }}/>
-      <div style={{
-        position: 'absolute', top: -40, right: -20, width: 100, height: 100,
-        background: `radial-gradient(circle, ${color}15, transparent 70%)`,
-        pointerEvents: 'none',
-      }}/>
-      <div style={{ fontSize: 24, marginBottom: 8 }}>{icon}</div>
-      <div style={{ fontSize: 28, fontWeight: 900, color, lineHeight: 1,
-        fontVariantNumeric: 'tabular-nums' }}>
+    <div className="bm-metric-card">
+      <div className="bm-metric-bar" style={{ background: color }} />
+      <div className="bm-metric-icon">{icon}</div>
+      <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 26,
+        fontWeight: 900, color, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
         {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
       </div>
-      <div style={{ fontSize: 12, color: T.textDim, marginTop: 4 }}>{label}</div>
-      {sub && <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{sub}</div>}
+      <div className="bm-metric-label">{label}</div>
+      {sub && <div className="bm-metric-sub">{sub}</div>}
     </div>
   );
 }
 
-// ── Difficulty progress bar ───────────────────────────────────────────
+// ── Difficulty bar ────────────────────────────────────────────────────
 function DiffBar({ difficulty, data }) {
-  const color = DIFF_COLORS[difficulty] || T.textMuted;
+  const color = DIFF_COLORS[difficulty] || '#6366f1';
   const acc = data.accuracy || 0;
-  const labels = { easy: 'Easy', medium: 'Medium', hard: 'Hard', extreme: 'Extreme' };
-
   return (
-    <div style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', marginBottom: 8 }}>
+    <div className="bm-diff-bar">
+      <div className="bm-diff-row">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: `${color}20`,
-            border: `1px solid ${color}40`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 800, color,
-          }}>
-            {labels[difficulty]?.[0]}
+          <div className="bm-diff-icon" style={{ color, background: `${color}12`,
+            border: `1.5px solid ${color}25` }}>
+            {DIFF_LABELS[difficulty]?.[0]}
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
-              {labels[difficulty]}
-            </div>
-            <div style={{ fontSize: 11, color: T.textMuted }}>
-              {data.total} tasks · {data.passed}✓ {data.failed}✗ {data.errored}⚡
+            <div className="bm-diff-name">{DIFF_LABELS[difficulty]}</div>
+            <div className="bm-diff-meta">
+              {data.total} tasks &middot; {data.passed}✓ {data.failed}✗ {data.errored}⚡
             </div>
           </div>
         </div>
-        <div style={{
-          fontSize: 18, fontWeight: 900, color,
-          fontVariantNumeric: 'tabular-nums',
-        }}>
+        <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 18,
+          fontWeight: 700, color }}>
           {acc.toFixed(1)}%
         </div>
       </div>
-      <div style={{
-        height: 6, background: T.border, borderRadius: 3, overflow: 'hidden',
-      }}>
-        <div style={{
-          height: '100%', width: `${acc}%`,
-          background: `linear-gradient(90deg, ${color}80, ${color})`,
-          borderRadius: 3,
-          boxShadow: `0 0 8px ${color}60`,
-          transition: 'width 1.2s cubic-bezier(0.4,0,0.2,1)',
-        }}/>
+      <div className="bm-diff-track">
+        <div className="bm-diff-fill" style={{
+          width: `${acc}%`,
+          background: `linear-gradient(90deg, ${color}70, ${color})`,
+        }} />
       </div>
     </div>
   );
 }
 
-// ── Task row ──────────────────────────────────────────────────────────
+// ── Task row (expandable) ─────────────────────────────────────────────
 function TaskRow({ result }) {
   const [open, setOpen] = useState(false);
   const cfg = STATUS_CONFIG[result.status] || STATUS_CONFIG.ERROR;
+  const dc = DIFF_COLORS[result.difficulty] || '#6366f1';
 
   return (
-    <div style={{
-      border: `1px solid ${open ? cfg.color + '40' : T.border}`,
-      borderRadius: 10, overflow: 'hidden', marginBottom: 6,
-      background: open ? `${cfg.color}08` : T.surface,
-      transition: 'all 0.2s',
+    <div className="bm-task-row" style={{
+      border: `1.5px solid ${open ? cfg.color + '30' : '#e4e4e7'}`,
+      background: open ? cfg.bg : '#fff',
     }}>
-      <div onClick={() => setOpen(o => !o)} style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '11px 14px', cursor: 'pointer',
-      }}>
-        {/* Status badge */}
-        <div style={{
-          width: 26, height: 26, borderRadius: 6,
-          background: cfg.bg, border: `1px solid ${cfg.color}40`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 11, fontWeight: 700, color: cfg.color, flexShrink: 0,
+      <div className="bm-task-header" onClick={() => setOpen(o => !o)}>
+        <div className="bm-status-dot" style={{
+          background: cfg.bg, border: `1.5px solid ${cfg.border}`, color: cfg.color,
         }}>
           {cfg.icon}
         </div>
 
-        {/* Difficulty pill */}
-        <div style={{
-          fontSize: 9, fontWeight: 800, color: DIFF_COLORS[result.difficulty],
-          background: `${DIFF_COLORS[result.difficulty]}15`,
-          border: `1px solid ${DIFF_COLORS[result.difficulty]}30`,
-          borderRadius: 4, padding: '2px 6px',
-          textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0,
+        <div className="bm-diff-pill" style={{
+          color: dc, background: `${dc}12`, border: `1px solid ${dc}25`,
         }}>
           {result.difficulty}
         </div>
 
-        {/* Question */}
-        <div style={{
-          flex: 1, fontSize: 12, color: T.textDim,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+        <div className="bm-task-question">
           {result.question.split('\n')[0]}
         </div>
 
-        {/* Metadata */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div className="bm-task-meta">
           {result.react_attempts > 1 && (
-            <div style={{
-              fontSize: 10, color: T.partial,
-              background: 'rgba(245,158,11,0.1)',
-              border: '1px solid rgba(245,158,11,0.2)',
-              borderRadius: 4, padding: '1px 6px',
-            }}>
-              ↺ {result.react_attempts}x
-            </div>
+            <div className="bm-retry-badge">↺ {result.react_attempts}x</div>
           )}
-          <div style={{
-            fontSize: 10, color: T.textMuted,
-          }}>
-            {result.elapsed_s}s
-          </div>
-          <div style={{
-            fontSize: 11, fontWeight: 700, color: cfg.color,
-            background: cfg.bg, borderRadius: 5, padding: '2px 8px',
+          <div className="bm-time">{result.elapsed_s}s</div>
+          <div className="bm-status-badge" style={{
+            color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`,
           }}>
             {result.status}
           </div>
-          <div style={{ color: T.textMuted, fontSize: 10 }}>
-            {open ? '▲' : '▼'}
-          </div>
+          <div className="bm-chevron">{open ? '▲' : '▼'}</div>
         </div>
       </div>
 
       {open && (
-        <div style={{
-          padding: '12px 14px',
-          borderTop: `1px solid ${cfg.color}20`,
-          background: T.bg,
-        }}>
-          <div style={{ fontSize: 11, color: T.textDim, marginBottom: 10 }}>
-            {result.detail}
-          </div>
-
-          {result.sql && (
-            <pre style={{
-              fontSize: 10, background: T.surface2,
-              border: `1px solid ${T.border}`,
-              borderRadius: 8, padding: '10px 12px',
-              overflow: 'auto', whiteSpace: 'pre-wrap',
-              margin: '0 0 10px 0', fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-              color: '#93c5fd', maxHeight: 140, lineHeight: 1.6,
-            }}>
-              {result.sql}
-            </pre>
+        <div className="bm-task-detail" style={{ borderTop: `1px solid ${cfg.border}` }}>
+          {result.detail && (
+            <div className="bm-detail-text">{result.detail}</div>
           )}
-
+          {result.sql && (
+            <pre className="bm-sql-block">{result.sql}</pre>
+          )}
           {result.prediction?.length > 0 && result.gold?.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div className="bm-compare">
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted,
-                  marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Got
-                </div>
-                <pre style={{
-                  fontSize: 10, background: cfg.bg,
-                  border: `1px solid ${cfg.color}30`,
-                  borderRadius: 6, padding: '8px 10px',
-                  fontFamily: 'monospace', color: cfg.color,
-                  margin: 0, overflow: 'auto',
+                <div className="bm-compare-label">Got</div>
+                <pre className="bm-compare-pre" style={{
+                  background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color,
                 }}>
                   {JSON.stringify(result.prediction[0], null, 2)}
                 </pre>
               </div>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted,
-                  marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Expected
-                </div>
-                <pre style={{
-                  fontSize: 10, background: 'rgba(16,185,129,0.08)',
-                  border: '1px solid rgba(16,185,129,0.2)',
-                  borderRadius: 6, padding: '8px 10px',
-                  fontFamily: 'monospace', color: T.pass,
-                  margin: 0, overflow: 'auto',
+                <div className="bm-compare-label">Expected</div>
+                <pre className="bm-compare-pre" style={{
+                  background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a',
                 }}>
                   {JSON.stringify(result.gold[0], null, 2)}
                 </pre>
@@ -339,85 +212,64 @@ function TaskRow({ result }) {
   );
 }
 
-// ── Main Dashboard ────────────────────────────────────────────────────
+// ── Chart tooltip ─────────────────────────────────────────────────────
+function ChartTip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bm-tooltip">
+      <div className="bm-tooltip-name">{payload[0].payload.name}</div>
+      <div style={{ color: payload[0].payload.color, fontWeight: 700, marginTop: 2 }}>
+        {typeof payload[0].value === 'number' ? payload[0].value.toFixed(1) + '%' : payload[0].value}
+      </div>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────
 export default function BenchmarkDashboard() {
-  const [data, setData]         = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-  const [filter, setFilter]     = useState('all');
-  const [diffFilter, setDiff]   = useState('all');
-  const [search, setSearch]     = useState('');
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+  const [filter, setFilter]   = useState('all');
+  const [diffFilter, setDiff] = useState('all');
+  const [search, setSearch]   = useState('');
 
   useEffect(() => {
-    fetchResults()
-      .then(setData)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+    fetchResults().then(setData).catch(e => setError(e.message)).finally(() => setLoading(false));
   }, []);
 
   if (loading) return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      height: '60vh', gap: 16, background: T.bg,
-    }}>
-      <div style={{
-        width: 48, height: 48, borderRadius: '50%',
-        border: `3px solid ${T.border}`,
-        borderTop: `3px solid ${T.accent}`,
-        animation: 'spin 0.8s linear infinite',
-      }}/>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ fontSize: 13, color: T.textMuted }}>Loading benchmark results...</div>
+    <div className="bm-center">
+      <div className="bm-spinner" />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <div className="bm-loading-text">Loading benchmark results…</div>
     </div>
   );
 
   if (error || !data) return (
-    <div style={{
-      padding: 60, textAlign: 'center', background: T.bg, minHeight: '60vh',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <div style={{
-        width: 80, height: 80, borderRadius: 20,
-        background: 'rgba(59,130,246,0.1)',
-        border: `1px solid rgba(59,130,246,0.2)`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 36, marginBottom: 20,
-      }}>
-        📊
-      </div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 8 }}>
-        No benchmark results yet
-      </div>
-      <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 20 }}>
-        Run the benchmark against your local backend first
-      </div>
-      <pre style={{
-        background: T.surface, border: `1px solid ${T.border}`,
-        borderRadius: 8, padding: '12px 20px',
-        fontSize: 12, color: '#93c5fd', fontFamily: 'monospace',
-      }}>
-        python benchmark_agent.py --limit 52
-      </pre>
+    <div className="bm-center">
+      <div className="bm-empty-icon">📊</div>
+      <div className="bm-empty-title">No benchmark results yet</div>
+      <div className="bm-empty-sub">Run the benchmark against your local backend first</div>
+      <pre className="bm-empty-cmd">python benchmark_agent.py --limit 52</pre>
     </div>
   );
 
-  const { total, passed, partial, failed, errored, accuracy, by_difficulty, results } = data;
-
+  const { total, passed, partial = 0, failed, errored, accuracy, by_difficulty, results } = data;
   const selfCorrected = results.filter(r => r.self_corrected).length;
   const avgTime = (results.reduce((a, r) => a + (r.elapsed_s || 0), 0) / results.length).toFixed(1);
 
   const statusData = [
-    { name: 'Passed',  value: passed,  color: T.pass    },
-    { name: 'Partial', value: partial, color: T.partial },
-    { name: 'Failed',  value: failed,  color: T.fail    },
-    { name: 'Error',   value: errored, color: T.error   },
+    { name: 'Passed',  value: passed,  color: '#16a34a' },
+    { name: 'Partial', value: partial, color: '#d97706' },
+    { name: 'Failed',  value: failed,  color: '#dc2626' },
+    { name: 'Error',   value: errored, color: '#7c3aed' },
   ].filter(d => d.value > 0);
 
   const diffData = Object.entries(by_difficulty).map(([diff, d]) => ({
-    name: diff.charAt(0).toUpperCase() + diff.slice(1),
-    accuracy: d.accuracy, color: DIFF_COLORS[diff],
-    passed: d.passed, failed: d.failed, errored: d.errored,
+    name: DIFF_LABELS[diff] || diff,
+    accuracy: d.accuracy,
+    color: DIFF_COLORS[diff] || '#6366f1',
   }));
 
   const filteredResults = results.filter(r => {
@@ -427,197 +279,94 @@ export default function BenchmarkDashboard() {
     return s && d && q;
   });
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div style={{
-        background: T.surface, border: `1px solid ${T.border}`,
-        borderRadius: 8, padding: '8px 12px', fontSize: 12, color: T.text,
-      }}>
-        <div style={{ fontWeight: 700 }}>{payload[0].payload.name}</div>
-        <div style={{ color: payload[0].payload.color, marginTop: 2 }}>
-          {payload[0].value.toFixed(1)}%
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div style={{
-      background: T.bg, minHeight: '100vh',
-      padding: '24px', color: T.text,
-      fontFamily: '"Inter", system-ui, sans-serif',
-    }}>
+    <div className="bm-page">
 
-      {/* ── Header ── */}
-      <div style={{
-        background: `linear-gradient(135deg, ${T.surface} 0%, #0f1729 100%)`,
-        border: `1px solid ${T.border}`,
-        borderRadius: 16, padding: '24px 28px',
-        display: 'flex', alignItems: 'center', gap: 24,
-        marginBottom: 20, position: 'relative', overflow: 'hidden',
-      }}>
-        {/* Background grid */}
-        <div style={{
-          position: 'absolute', inset: 0, opacity: 0.03,
-          backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
-          backgroundSize: '32px 32px', pointerEvents: 'none',
-        }}/>
-        {/* Glow */}
-        <div style={{
-          position: 'absolute', top: -60, right: 200, width: 300, height: 300,
-          background: 'radial-gradient(circle, rgba(59,130,246,0.12), transparent 70%)',
-          pointerEvents: 'none',
-        }}/>
-
-        <div style={{ flex: 1, position: 'relative' }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(59,130,246,0.1)',
-            border: '1px solid rgba(59,130,246,0.2)',
-            borderRadius: 6, padding: '4px 10px',
-            fontSize: 10, fontWeight: 700, color: T.accent,
-            textTransform: 'uppercase', letterSpacing: '0.1em',
-            marginBottom: 12,
-          }}>
-            <div style={{
-              width: 6, height: 6, borderRadius: '50%', background: T.accent,
-              boxShadow: `0 0 6px ${T.accent}`,
-              animation: 'pulse 2s infinite',
-            }}/>
-            KDD Cup 2026 · DataAgent-Bench Phase 1
+      {/* ── Hero — dark, matching DashboardPage ── */}
+      <div className="bm-hero">
+        <div className="bm-hero-grid" />
+        <div className="bm-hero-glow" />
+        <div className="bm-hero-text">
+          <div className="bm-hero-eyebrow">
+            <span className="bm-eyebrow-dot" />
+            DataAgent-Bench · Phase 1
           </div>
-          <style>{`
-            @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-          `}</style>
-          <h1 style={{
-            fontSize: 26, fontWeight: 900, margin: '0 0 6px 0',
-            background: 'linear-gradient(135deg, #f1f5f9, #94a3b8)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>
-            Database Assistant Benchmark
-          </h1>
-          <p style={{ fontSize: 13, color: T.textMuted, margin: 0 }}>
-            SJSU CMPE 295B · {total} tasks evaluated across 4 difficulty levels
+          <h1 className="bm-hero-title">Benchmark Results</h1>
+          <p className="bm-hero-sub">
+            SJSU CMPE 295B &middot; {total} tasks across 4 difficulty levels
           </p>
         </div>
-
         <AccuracyRing value={accuracy} />
       </div>
 
       {/* ── Metric cards ── */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 12, marginBottom: 20,
-      }}>
+      <div className="bm-metrics">
         <MetricCard icon="✅" label="Tasks Passed" value={passed}
-          sub={`of ${total} total`} color={T.pass} />
+          sub={`of ${total} total`} color="#16a34a" />
         <MetricCard icon="⚡" label="Self-Corrected" value={selfCorrected}
-          sub="via ReAct loop" color={T.error} />
+          sub="via ReAct loop" color="#7c3aed" />
         <MetricCard icon="⏱" label="Avg Response" value={`${avgTime}s`}
-          sub="per task" color={T.accent} />
+          sub="per task" color="#6366f1" />
         <MetricCard icon="🎯" label="Hard Accuracy"
           value={`${by_difficulty.hard?.accuracy?.toFixed(0) || 0}%`}
           sub={`${by_difficulty.hard?.passed || 0} of ${by_difficulty.hard?.total || 0}`}
-          color={T.partial} />
+          color="#d97706" />
       </div>
 
-      {/* ── Charts row ── */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1.8fr',
-        gap: 14, marginBottom: 20,
-      }}>
+      {/* ── Charts ── */}
+      <div className="bm-charts">
 
-        {/* Donut chart */}
-        <div style={{
-          background: T.surface, border: `1px solid ${T.border}`,
-          borderRadius: 14, padding: '20px',
-        }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, color: T.textMuted,
-            textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16,
-          }}>
-            Result Distribution
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            <ResponsiveContainer width="100%" height={160}>
-              <PieChart>
-                <Pie data={statusData} dataKey="value"
-                  cx="50%" cy="50%"
-                  innerRadius={48} outerRadius={72}
-                  paddingAngle={3} strokeWidth={0}>
-                  {statusData.map((e, i) => (
-                    <Cell key={i} fill={e.color}/>
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={({ active, payload }) => active && payload?.length ? (
-                    <div style={{
-                      background: T.surface2, border: `1px solid ${T.border}`,
-                      borderRadius: 8, padding: '8px 12px', fontSize: 12,
-                    }}>
-                      <div style={{ color: payload[0].payload.color, fontWeight: 700 }}>
-                        {payload[0].name}: {payload[0].value}
-                      </div>
-                    </div>
-                  ) : null}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px',
-            }}>
-              {statusData.map(s => (
-                <div key={s.name} style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                }}>
-                  <div style={{
-                    width: 8, height: 8, borderRadius: 2,
-                    background: s.color, flexShrink: 0,
-                  }}/>
-                  <span style={{ fontSize: 11, color: T.textDim, flex: 1 }}>{s.name}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: s.color }}>
-                    {s.value}
+        {/* Donut */}
+        <div className="bm-card">
+          <div className="bm-card-title">Result Distribution</div>
+          <ResponsiveContainer width="100%" height={160}>
+            <PieChart>
+              <Pie data={statusData} dataKey="value"
+                cx="50%" cy="50%" innerRadius={46} outerRadius={70}
+                paddingAngle={3} strokeWidth={0}>
+                {statusData.map((e, i) => <Cell key={i} fill={e.color} />)}
+              </Pie>
+              <Tooltip content={({ active, payload }) => active && payload?.length ? (
+                <div className="bm-tooltip">
+                  <span style={{ color: payload[0].payload.color, fontWeight: 700 }}>
+                    {payload[0].name}: {payload[0].value}
                   </span>
                 </div>
-              ))}
-            </div>
+              ) : null} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="bm-legend">
+            {statusData.map(s => (
+              <div key={s.name} className="bm-legend-item">
+                <div className="bm-legend-dot" style={{ background: s.color }} />
+                <span className="bm-legend-name">{s.name}</span>
+                <span className="bm-legend-val" style={{ color: s.color }}>{s.value}</span>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Bar chart */}
-        <div style={{
-          background: T.surface, border: `1px solid ${T.border}`,
-          borderRadius: 14, padding: '20px',
-        }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, color: T.textMuted,
-            textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16,
-          }}>
-            Accuracy by Difficulty
-          </div>
+        <div className="bm-card">
+          <div className="bm-card-title">Accuracy by Difficulty</div>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={diffData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <BarChart data={diffData} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
               <defs>
                 {diffData.map((d, i) => (
-                  <linearGradient key={i} id={`grad-${i}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={d.color} stopOpacity={1}/>
-                    <stop offset="100%" stopColor={d.color} stopOpacity={0.4}/>
+                  <linearGradient key={i} id={`bg-${i}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={d.color} stopOpacity={0.9} />
+                    <stop offset="100%" stopColor={d.color} stopOpacity={0.35} />
                   </linearGradient>
                 ))}
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false}/>
-              <XAxis dataKey="name"
-                tick={{ fontSize: 11, fill: T.textMuted }}
-                axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fontSize: 10, fill: T.textMuted }}
-                axisLine={false} tickLine={false}
-                tickFormatter={v => `${v}%`} domain={[0, 100]}/>
-              <Tooltip content={<CustomTooltip />}/>
-              <Bar dataKey="accuracy" radius={[6, 6, 0, 0]} maxBarSize={56}>
-                {diffData.map((d, i) => (
-                  <Cell key={i} fill={`url(#grad-${i})`}/>
-                ))}
+              <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#71717a', fontFamily: "'DM Sans',sans-serif" }}
+                axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#a1a1aa', fontFamily: "'DM Sans',sans-serif" }}
+                axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 100]} />
+              <Tooltip content={<ChartTip />} />
+              <Bar dataKey="accuracy" radius={[6, 6, 0, 0]} maxBarSize={52}>
+                {diffData.map((d, i) => <Cell key={i} fill={`url(#bg-${i})`} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -625,112 +374,66 @@ export default function BenchmarkDashboard() {
       </div>
 
       {/* ── Difficulty breakdown ── */}
-      <div style={{
-        background: T.surface, border: `1px solid ${T.border}`,
-        borderRadius: 14, padding: '20px 24px', marginBottom: 20,
-      }}>
-        <div style={{
-          fontSize: 10, fontWeight: 700, color: T.textMuted,
-          textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20,
-        }}>
-          Difficulty Breakdown
-        </div>
+      <div className="bm-card bm-breakdown">
+        <div className="bm-card-title">Difficulty Breakdown</div>
         {Object.entries(by_difficulty).map(([diff, d]) => (
           <DiffBar key={diff} difficulty={diff} data={d} />
         ))}
       </div>
 
       {/* ── Task results ── */}
-      <div style={{
-        background: T.surface, border: `1px solid ${T.border}`,
-        borderRadius: 14, padding: '20px 24px',
-      }}>
-        {/* Filters */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          marginBottom: 16, flexWrap: 'wrap',
-        }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, color: T.textMuted,
-            textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0,
-          }}>
-            Task Results
-          </div>
+      <div className="bm-card">
+        <div className="bm-filters">
+          <div className="bm-card-title" style={{ margin: 0 }}>Task Results</div>
 
           <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search questions..."
-            style={{
-              flex: 1, minWidth: 160, fontSize: 12, padding: '6px 12px',
-              borderRadius: 8, border: `1px solid ${T.border}`,
-              background: T.bg, color: T.text, outline: 'none',
-            }}
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search questions…"
+            className="bm-search"
           />
 
-          {/* Status filters */}
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div className="bm-filter-group">
             {['all', 'pass', 'partial', 'fail', 'error'].map(f => {
               const active = filter === f;
-              const color = f === 'all' ? T.accent :
-                f === 'pass' ? T.pass : f === 'partial' ? T.partial :
-                f === 'fail' ? T.fail : T.error;
+              const cfg = f === 'all' ? { color: '#6366f1' } :
+                f === 'pass' ? STATUS_CONFIG.PASS : f === 'partial' ? STATUS_CONFIG.PARTIAL :
+                f === 'fail' ? STATUS_CONFIG.FAIL : STATUS_CONFIG.ERROR;
               return (
-                <button key={f} onClick={() => setFilter(f)} style={{
-                  fontSize: 10, fontWeight: 700, padding: '5px 10px',
-                  borderRadius: 6, border: `1px solid ${active ? color + '60' : T.border}`,
-                  background: active ? `${color}20` : 'transparent',
-                  color: active ? color : T.textMuted,
-                  cursor: 'pointer', textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}>
+                <button key={f} onClick={() => setFilter(f)}
+                  className={`bm-filter-btn ${active ? 'active' : ''}`}
+                  style={active ? { color: cfg.color, background: cfg.bg || `${cfg.color}12`,
+                    borderColor: `${cfg.color}30` } : {}}>
                   {f}
                 </button>
               );
             })}
           </div>
 
-          {/* Difficulty filters */}
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div className="bm-filter-group">
             {['all', 'easy', 'medium', 'hard', 'extreme'].map(d => {
               const active = diffFilter === d;
-              const color = DIFF_COLORS[d] || T.accent;
+              const color = DIFF_COLORS[d] || '#6366f1';
               return (
-                <button key={d} onClick={() => setDiff(d)} style={{
-                  fontSize: 10, fontWeight: 700, padding: '5px 10px',
-                  borderRadius: 6, border: `1px solid ${active ? color + '60' : T.border}`,
-                  background: active ? `${color}20` : 'transparent',
-                  color: active ? color : T.textMuted,
-                  cursor: 'pointer', textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}>
+                <button key={d} onClick={() => setDiff(d)}
+                  className={`bm-filter-btn ${active ? 'active' : ''}`}
+                  style={active ? { color, background: `${color}12`, borderColor: `${color}30` } : {}}>
                   {d}
                 </button>
               );
             })}
           </div>
 
-          <span style={{ fontSize: 11, color: T.textMuted, marginLeft: 'auto', flexShrink: 0 }}>
-            {filteredResults.length} / {total}
-          </span>
+          <span className="bm-count">{filteredResults.length} / {total}</span>
         </div>
 
-        {/* Task list */}
-        <div style={{ maxHeight: 560, overflowY: 'auto',
-          scrollbarWidth: 'thin', scrollbarColor: `${T.border} transparent` }}>
-          {filteredResults.map(r => (
-            <TaskRow key={r.task_id} result={r} />
-          ))}
+        <div className="bm-task-list">
+          {filteredResults.map(r => <TaskRow key={r.task_id} result={r} />)}
           {filteredResults.length === 0 && (
-            <div style={{
-              textAlign: 'center', padding: 40,
-              color: T.textMuted, fontSize: 13,
-            }}>
-              No tasks match the current filter
-            </div>
+            <div className="bm-no-results">No tasks match the current filter</div>
           )}
         </div>
       </div>
+
     </div>
   );
 }
