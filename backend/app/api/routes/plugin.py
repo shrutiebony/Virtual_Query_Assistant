@@ -658,18 +658,21 @@ def result_page(result_id: str):
     else:
         sql_section = ""
 
-    html = _RESULT_PAGE_TEMPLATE
-    html = html.replace("TMPL_QUESTION",  _esc(question))
-    html = html.replace("TMPL_SOURCE",    _esc(source_label))
-    html = html.replace("TMPL_ROWS",      str(len(data)))
-    html = html.replace("TMPL_COLS",      str(len(cols)))
-    html = html.replace("TMPL_SQL_SECTION", sql_section)
     from decimal import Decimal
     def _json_safe(obj):
         if isinstance(obj, Decimal): return float(obj)
         raise TypeError(type(obj).__name__)
-    html = html.replace("TMPL_DATA_JSON", json.dumps(data[:200], default=_json_safe))
-    html = html.replace("TMPL_COLS_JSON", json.dumps(cols))
+
+    html = _RESULT_PAGE_TEMPLATE
+    # Replace longer/more-specific placeholders FIRST to avoid prefix collisions
+    # (e.g. TMPL_COLS must come after TMPL_COLS_JSON)
+    html = html.replace("TMPL_QUESTION",    _esc(question))
+    html = html.replace("TMPL_SOURCE",      _esc(source_label))
+    html = html.replace("TMPL_SQL_SECTION", sql_section)
+    html = html.replace("TMPL_DATA_JSON",   json.dumps(data[:200], default=_json_safe))
+    html = html.replace("TMPL_COLS_JSON",   json.dumps(cols))   # before TMPL_COLS
+    html = html.replace("TMPL_ROWS",        str(len(data)))
+    html = html.replace("TMPL_COLS",        str(len(cols)))
     html = html.replace("TMPL_FRONTEND",  FRONTEND_URL)
     return HTMLResponse(html)
 
