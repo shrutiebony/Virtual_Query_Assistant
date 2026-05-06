@@ -13,6 +13,7 @@ import MySQLPage from './pages/MySQLPage';
 import AppLayout    from './components/layout/AppLayout';
 import BenchmarkDashboard from './pages/BenchmarkDashboard';
 import PluginPage from './components/PluginPage';
+import HelloWorldPage from './pages/HelloWorldPage';
 
 
 function PrivateRoute({ children }) {
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="swarm"       element={<SwarmPage />} />
             <Route path="benchmark"   element={<BenchmarkDashboard />} />
             <Route path="plugin"      element={<PluginPage />} />
+            <Route path="hello-world" element={<HelloWorldPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
