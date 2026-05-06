@@ -1,458 +1,670 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './HelloWorldPage.css';
 
-const API    = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const NEON   = 'postgresql://neondb_owner:npg_Rn56FbVsmiQI@ep-wandering-art-amtq6t2m-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require';
-const DEF_Q  = 'How many employees are in each department?';
+const API     = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const NEON    = 'postgresql://neondb_owner:npg_Rn56FbVsmiQI@ep-wandering-art-amtq6t2m-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require';
+const DEF_Q   = 'What is the total revenue per employee department?';
 
-function token() { return localStorage.getItem('token') || ''; }
+function tok() { return localStorage.getItem('token') || ''; }
 
-const AGENTS = [
-  { id: 'schema',  label: 'Schema Agent',  desc: 'Reads table structure & column types',      color: '#3b82f6' },
-  { id: 'sql',     label: 'SQL Agent',      desc: 'Generates optimized SQL using ReAct loop',  color: '#8b5cf6' },
-  { id: 'safety',  label: 'Safety Agent',   desc: 'Validates query safety & correctness',      color: '#f59e0b' },
-  { id: 'insight', label: 'Insight Agent',  desc: 'Synthesizes results into key insights',     color: '#10b981' },
-];
+// ── Shared atoms ──────────────────────────────────────────────────────────
 
-// ── helpers ──────────────────────────────────────────────────────────────
-function SqlBlock({ sql, copied, onCopy }) {
+function StatusBadge({ status }) {
+  const MAP = {
+    idle:    { icon: '⏸', label: 'Idle',    cls: 'sb-idle'    },
+    running: { icon: '⚙️', label: 'Running', cls: 'sb-running' },
+    done:    { icon: '✅', label: 'Done',    cls: 'sb-done'    },
+    error:   { icon: '❌', label: 'Failed',  cls: 'sb-error'   },
+  };
+  const { icon, label, cls } = MAP[status] || MAP.idle;
+  return <span className={`hw-status ${cls}`}>{icon} {label}</span>;
+}
+
+function TimingBadge({ ms }) {
+  if (!ms) return null;
+  return <span className="hw-timing">{ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(1)}s`}</span>;
+}
+
+function CodeBlock({ sql }) {
+  const [copied, setCopied] = useState(false);
   if (!sql) return null;
   return (
-    <div className="hw-sql-card">
-      <div className="hw-sql-bar">
-        <span className="hw-label">Generated SQL</span>
-        <button className={`hw-copy ${copied ? 'ok' : ''}`} onClick={onCopy}>
+    <div className="hw-code-card">
+      <div className="hw-code-header">
+        <span className="hw-code-lang">SQL</span>
+        <button className={`hw-code-copy ${copied ? 'ok' : ''}`}
+          onClick={() => { navigator.clipboard.writeText(sql); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
           {copied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="hw-sql">{sql}</pre>
+      <pre className="hw-code">{sql}</pre>
     </div>
   );
 }
 
-function ResultTable({ data, columns, maxRows = 8 }) {
+function DataTable({ data, columns, maxRows = 5 }) {
   if (!Array.isArray(data) || !data.length) return null;
   const first = data.find(r => r && typeof r === 'object') || {};
-  const cols = columns?.length ? columns : Object.keys(first);
-  const rows = data.slice(0, maxRows);
+  const cols  = columns?.length ? columns : Object.keys(first);
+  if (!cols.length) return null;
   return (
-    <div className="hw-table-wrap">
+    <div className="hw-table-outer">
       <table className="hw-table">
         <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
         <tbody>
-          {rows.map((row, i) => (
+          {data.slice(0, maxRows).map((row, i) => (
             <tr key={i}>{cols.map(c => <td key={c}>{String(row[c] ?? '')}</td>)}</tr>
           ))}
         </tbody>
       </table>
       {data.length > maxRows && (
-        <div className="hw-more">+{data.length - maxRows} more rows</div>
+        <div className="hw-table-more">+ {data.length - maxRows} more rows</div>
       )}
     </div>
   );
 }
 
-// ── Level 1: Single Agent ─────────────────────────────────────────────────
-function Level1() {
-  const [q, setQ]         = useState(DEF_Q);
-  const [loading, setL]   = useState(false);
-  const [result, setR]    = useState(null);
-  const [error, setE]     = useState('');
-  const [copied, setC]    = useState(false);
+function SkeletonLoader() {
+  return (
+    <div className="hw-skeleton">
+      <div className="hw-skel hw-skel-line" />
+      <div className="hw-skel hw-skel-line hw-skel-short" />
+      <div className="hw-skel hw-skel-block" />
+    </div>
+  );
+}
+
+function SectionLabel({ children }) {
+  return <div className="hw-section-label">{children}</div>;
+}
+
+function Divider() { return <hr className="hw-divider" />; }
+
+// ── HOW IT WORKS diagrams ─────────────────────────────────────────────────
+
+function L1Diagram() {
+  return (
+    <div className="hw-diagram">
+      <SectionLabel>How It Works</SectionLabel>
+      <div className="hw-diagram-flow">
+        <div className="hw-dnode">❓ Question</div>
+        <div className="hw-darrow">→</div>
+        <div className="hw-dnode hw-dnode-blue">🤖 AI / Gemini</div>
+        <div className="hw-darrow">→</div>
+        <div className="hw-dnode">📝 SQL</div>
+        <div className="hw-darrow">→</div>
+        <div className="hw-dnode hw-dnode-success">✅ Result</div>
+      </div>
+      <div className="hw-diagram-note">One pass. No second chances.</div>
+    </div>
+  );
+}
+
+function L2Diagram() {
+  return (
+    <div className="hw-diagram">
+      <SectionLabel>How It Works</SectionLabel>
+      <div className="hw-diagram-react">
+        <div className="hw-react-row">
+          <div className="hw-dnode">❓ Ask</div>
+          <div className="hw-darrow">→</div>
+          <div className="hw-dnode hw-dnode-purple">💭 Think</div>
+          <div className="hw-darrow">→</div>
+          <div className="hw-dnode hw-dnode-purple">⚡ Generate SQL</div>
+          <div className="hw-darrow">→</div>
+          <div className="hw-dnode hw-dnode-purple">🔄 Execute</div>
+          <div className="hw-darrow">→</div>
+          <div className="hw-dnode hw-dnode-success">✅ Done</div>
+        </div>
+        <div className="hw-react-loop-label">
+          ↺ &nbsp;If error — agent reasons about the mistake and retries (up to 3 times)
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function L3Diagram() {
+  const agents = [
+    { icon: '🗂️', label: 'Schema Agent' },
+    { icon: '⚡', label: 'SQL Agent' },
+    { icon: '🛡️', label: 'Safety Agent' },
+    { icon: '💡', label: 'Insight Agent' },
+  ];
+  return (
+    <div className="hw-diagram">
+      <SectionLabel>How It Works</SectionLabel>
+      <div className="hw-diagram-parallel">
+        <div className="hw-par-left">
+          <div className="hw-dnode">❓ Question</div>
+        </div>
+        <div className="hw-par-middle">
+          <div className="hw-par-fork">→</div>
+          <div className="hw-par-agents">
+            {agents.map(a => (
+              <div key={a.label} className="hw-par-agent-node hw-dnode-green">
+                {a.icon} {a.label}
+              </div>
+            ))}
+          </div>
+          <div className="hw-par-join">→</div>
+        </div>
+        <div className="hw-par-right">
+          <div className="hw-dnode hw-dnode-success">🎯 Answer</div>
+        </div>
+      </div>
+      <div className="hw-diagram-note">All 4 agents run simultaneously.</div>
+    </div>
+  );
+}
+
+// ── Level 1 Card ─────────────────────────────────────────────────────────
+
+function Level1Card({ question, trigger, onResult }) {
+  const [status, setS] = useState('idle');
+  const [result, setR] = useState(null);
+  const [error,  setE] = useState('');
+  const [ms,     setMs]= useState(null);
+
+  useEffect(() => { if (trigger) run(); }, [trigger]); // eslint-disable-line
 
   async function run() {
-    if (!q.trim()) return;
-    setL(true); setE(''); setR(null);
+    setS('running'); setE(''); setR(null); setMs(null);
+    const t0 = Date.now();
     try {
       const res  = await fetch(`${API}/plugin/query`, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q, tables: {} }),
+        body:    JSON.stringify({ question, tables: {} }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setR(data);
-    } catch(e) { setE(e.message); }
-    finally    { setL(false); }
-  }
-
-  return (
-    <div className="hw-card">
-      <div className="hw-card-header">
-        <div className="hw-badge hw-badge-1">01</div>
-        <div>
-          <div className="hw-card-title">Single Agent Query</div>
-          <div className="hw-card-sub">
-            Direct NL → SQL pipeline. One agent, one call, instant answer.
-          </div>
-        </div>
-        <div className="hw-arch-tag">Plugin API → Gemini → Neon DB</div>
-      </div>
-
-      <div className="hw-input-row">
-        <input className="hw-input" value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && run()} placeholder="Ask a question…" />
-        <button className="hw-btn hw-btn-1" onClick={run} disabled={loading}>
-          {loading ? <><span className="hw-spin" />Running…</> : 'Run Agent'}
-        </button>
-      </div>
-
-      {error && <div className="hw-error">{error}</div>}
-
-      {result && (
-        <div className="hw-result hw-fadein">
-          <div className="hw-stats-row">
-            <div className="hw-stat"><span>{result.row_count}</span>Rows</div>
-            <div className="hw-stat"><span className="hw-stat-ok">✓</span>Success</div>
-            <div className="hw-stat"><span>1</span>Agent</div>
-          </div>
-          <SqlBlock sql={result.sql} copied={copied}
-            onCopy={() => { navigator.clipboard.writeText(result.sql); setC(true); setTimeout(()=>setC(false),2000); }} />
-          <ResultTable data={result.preview} columns={result.preview?.[0] ? Object.keys(result.preview[0]) : []} />
-          {result.result_url && (
-            <a href={result.result_url} target="_blank" rel="noreferrer" className="hw-view-btn">
-              View Full Results →
-            </a>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Level 2: ReAct Loop ───────────────────────────────────────────────────
-function Level2() {
-  const [q, setQ]           = useState(DEF_Q);
-  const [loading, setL]     = useState(false);
-  const [result, setR]      = useState(null);
-  const [error, setE]       = useState('');
-  const [visibleSteps, setV]= useState(0);
-  const [copied, setC]      = useState(false);
-
-  async function run() {
-    if (!q.trim()) return;
-    setL(true); setE(''); setR(null); setV(0);
-    try {
-      const res  = await fetch(`${API}/pg/nl-query-auto`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pg_uri: NEON, question: q, limit: 50, react: true }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Query failed');
-      }
-      const data = await res.json();
-      setR(data);
-    } catch(e) { setE(e.message); }
-    finally    { setL(false); }
-  }
-
-  // Animate steps appearing one by one
-  useEffect(() => {
-    if (!result?.react_trace) return;
-    const trace  = result.react_trace;
-    const total  = (trace.thoughts?.length || 0) * 3; // 3 items per attempt
-    let step = 0;
-    const id = setInterval(() => {
-      step++;
-      setV(step);
-      if (step >= total) clearInterval(id);
-    }, 500);
-    return () => clearInterval(id);
-  }, [result]);
-
-  const trace = result?.react_trace;
-  const attempts = trace?.thoughts?.length || 0;
-
-  return (
-    <div className="hw-card">
-      <div className="hw-card-header">
-        <div className="hw-badge hw-badge-2">02</div>
-        <div>
-          <div className="hw-card-title">ReAct Self-Correcting Loop</div>
-          <div className="hw-card-sub">
-            Iterative Reason + Act cycles. Agent diagnoses errors and corrects its own SQL.
-          </div>
-        </div>
-        <div className="hw-arch-tag">Schema → ReAct → Execute → Retry</div>
-      </div>
-
-      <div className="hw-input-row">
-        <input className="hw-input" value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && run()} placeholder="Ask a question…" />
-        <button className="hw-btn hw-btn-2" onClick={run} disabled={loading}>
-          {loading ? <><span className="hw-spin" />Running…</> : 'Run ReAct'}
-        </button>
-      </div>
-
-      {error && <div className="hw-error">{error}</div>}
-
-      {loading && (
-        <div className="hw-react-loading hw-fadein">
-          <div className="hw-pulse-ring" />
-          <span>ReAct agent reasoning…</span>
-        </div>
-      )}
-
-      {result && trace && (
-        <div className="hw-fadein">
-          {/* Attempts badge */}
-          <div className="hw-react-meta">
-            <span className={`hw-attempt-badge ${attempts > 1 ? 'corrected' : 'clean'}`}>
-              {attempts > 1 ? `⟳ Self-corrected in ${attempts} attempts` : '✓ Solved on first attempt'}
-            </span>
-            <span className="hw-react-count">{attempts} attempt{attempts !== 1 ? 's' : ''}</span>
-          </div>
-
-          {/* Step-by-step trace */}
-          <div className="hw-trace">
-            {(trace.thoughts || []).map((thought, i) => {
-              const baseStep = i * 3;
-              return (
-                <div key={i} className="hw-attempt-block">
-                  <div className="hw-attempt-label">
-                    {i === 0 ? 'Initial Attempt' : `Correction Attempt ${i + 1}`}
-                    {i > 0 && <span className="hw-correction-tag">Self-Corrected</span>}
-                  </div>
-
-                  {visibleSteps > baseStep && (
-                    <div className="hw-step hw-step-thought hw-fadein">
-                      <div className="hw-step-icon">💭</div>
-                      <div>
-                        <div className="hw-step-label">Thought</div>
-                        <div className="hw-step-text">{thought}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {visibleSteps > baseStep + 1 && trace.actions?.[i] && (
-                    <div className="hw-step hw-step-action hw-fadein">
-                      <div className="hw-step-icon">⚡</div>
-                      <div>
-                        <div className="hw-step-label">Action — SQL Generated</div>
-                        <pre className="hw-step-sql">{trace.actions[i]}</pre>
-                      </div>
-                    </div>
-                  )}
-
-                  {visibleSteps > baseStep + 2 && trace.observations?.[i] && (
-                    <div className={`hw-step hw-fadein ${
-                      trace.observations[i].toLowerCase().includes('error') ||
-                      trace.observations[i].toLowerCase().includes('fail')
-                        ? 'hw-step-error' : 'hw-step-obs'}`}>
-                      <div className="hw-step-icon">
-                        {trace.observations[i].toLowerCase().includes('error') ||
-                         trace.observations[i].toLowerCase().includes('fail') ? '✗' : '✓'}
-                      </div>
-                      <div>
-                        <div className="hw-step-label">Observation</div>
-                        <div className="hw-step-text">{trace.observations[i]}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Final result */}
-          <div className="hw-stats-row">
-            <div className="hw-stat"><span>{result.count ?? 0}</span>Rows</div>
-            <div className="hw-stat"><span>{attempts}</span>Attempts</div>
-            <div className="hw-stat"><span className="hw-stat-ok">✓</span>Success</div>
-          </div>
-          <SqlBlock sql={result.sql} copied={copied}
-            onCopy={() => { navigator.clipboard.writeText(result.sql); setC(true); setTimeout(()=>setC(false),2000); }} />
-          <ResultTable data={result.data} columns={result.columns} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Level 3: Swarm ────────────────────────────────────────────────────────
-function Level3() {
-  const [q, setQ]           = useState(DEF_Q);
-  const [loading, setL]     = useState(false);
-  const [result, setR]      = useState(null);
-  const [error, setE]       = useState('');
-  const [agentStates, setAS]= useState({});
-  const [copied, setC]      = useState(false);
-  const startTime           = useRef({});
-
-  async function run() {
-    if (!q.trim()) return;
-    setL(true); setE(''); setR(null);
-
-    // Stagger agent "start" animations
-    const initial = {};
-    AGENTS.forEach(a => { initial[a.id] = 'waiting'; });
-    setAS(initial);
-
-    AGENTS.forEach((a, i) => {
-      setTimeout(() => {
-        startTime.current[a.id] = Date.now();
-        setAS(prev => ({ ...prev, [a.id]: 'running' }));
-      }, i * 280);
-    });
-
-    try {
-      const t0  = Date.now();
-      const res = await fetch(`${API}/swarm/pg-query`, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${token()}`,
-        },
-        body: JSON.stringify({ pg_uri: NEON, question: q, limit: 50, max_subtasks: 4 }),
-      });
-
-      let data;
-      try { data = await res.json(); }
-      catch(_) { throw new Error(`Server error (${res.status})`); }
-
-      if (!res.ok) throw new Error(data?.detail || data?.error || `Request failed (${res.status})`);
-
-      const totalMs = Date.now() - t0;
-
-      // Pull first successful subtask result for display
-      const firstOk = (data.subtask_results || []).find(r => !r.error) || data.subtask_results?.[0] || {};
-      const summaryText = typeof data.summary === 'string'
-        ? data.summary
-        : data.summary?.text || data.summary?.answer || data.summary?.summary || '';
-
-      // Mark all agents done with staggered finish
-      AGENTS.forEach((a, i) => {
-        setTimeout(() => setAS(prev => ({ ...prev, [a.id]: 'done' })), i * 120);
-      });
-
-      setTimeout(() => setR({
-        sql:        firstOk.sql        || '',
-        data:       firstOk.data       || [],
-        columns:    firstOk.columns    || [],
-        row_count:  firstOk.row_count  ?? (firstOk.data?.length ?? 0),
-        agents_run: data.agents_run    ?? AGENTS.length,
-        succeeded:  data.agents_succeeded ?? AGENTS.length,
-        summary:    summaryText,
-        totalMs,
-      }), AGENTS.length * 120 + 200);
-
-    } catch(e) {
-      setE(e.message || 'Swarm query failed');
-      AGENTS.forEach(a => setAS(prev => ({ ...prev, [a.id]: 'error' })));
-    } finally {
-      setL(false);
+      const elapsed = Date.now() - t0;
+      setR(data); setMs(elapsed); setS('done');
+      onResult?.({ sql: data.sql, data: data.preview, timing: elapsed });
+    } catch (e) {
+      setE(e.message || 'Query failed'); setS('error');
+      onResult?.({ error: true });
     }
   }
 
-  const allDone  = AGENTS.every(a => agentStates[a.id] === 'done');
-  const anyAgent = Object.keys(agentStates).length > 0;
+  return (
+    <div className="hw-card hw-card-l1">
+      <div className="hw-card-head">
+        <div className="hw-badge hw-badge-l1">L1</div>
+        <div className="hw-card-meta">
+          <div className="hw-card-title">Basic Agent</div>
+          <div className="hw-card-sub">Single query — no reasoning, no retry</div>
+        </div>
+        <StatusBadge status={status} />
+      </div>
+
+      <L1Diagram />
+      <Divider />
+
+      <SectionLabel>Execution</SectionLabel>
+
+      {status === 'idle' && (
+        <p className="hw-idle-msg">Click <strong>Run All 3 Agents</strong> to start.</p>
+      )}
+      {status === 'running' && <SkeletonLoader />}
+
+      {(status === 'done' || status === 'error') && (
+        <div className="hw-exec-body">
+          <div className="hw-attempt-row">
+            <span className="hw-attempt-chip hw-chip-blue">Attempt 1 of 1</span>
+            <TimingBadge ms={ms} />
+          </div>
+          {error ? (
+            <div className="hw-error-box">
+              <div className="hw-error-title">❌ Agent stopped — no retry</div>
+              <div className="hw-error-text">{error}</div>
+            </div>
+          ) : (
+            <>
+              <CodeBlock sql={result?.sql} />
+              <DataTable
+                data={result?.preview}
+                columns={result?.preview?.[0] ? Object.keys(result.preview[0]) : []}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="hw-card-footer">
+        <Divider />
+        <div className="hw-key-msg hw-key-blue">
+          💬 Simple and fast. No error recovery.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Level 2 Card ─────────────────────────────────────────────────────────
+
+function Level2Card({ question, trigger, onResult }) {
+  const [status, setS]    = useState('idle');
+  const [result, setR]    = useState(null);
+  const [error,  setE]    = useState('');
+  const [ms,     setMs]   = useState(null);
+  const [visible, setVis] = useState(0);
+  const timerRef          = useRef(null);
+
+  useEffect(() => { if (trigger) run(); }, [trigger]); // eslint-disable-line
+
+  useEffect(() => {
+    if (!result?.react_trace) return;
+    const total = (result.react_trace.thoughts?.length || 0) * 3;
+    let n = 0;
+    timerRef.current = setInterval(() => {
+      n++;
+      setVis(n);
+      if (n >= total) clearInterval(timerRef.current);
+    }, 300);
+    return () => clearInterval(timerRef.current);
+  }, [result]);
+
+  async function run() {
+    clearInterval(timerRef.current);
+    setS('running'); setE(''); setR(null); setMs(null); setVis(0);
+    const t0 = Date.now();
+    try {
+      const res = await fetch(`${API}/pg/nl-query-auto`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ pg_uri: NEON, question, react: true, limit: 50 }),
+      });
+      let data;
+      try { data = await res.json(); } catch { throw new Error(`Server error (${res.status})`); }
+      if (!res.ok) throw new Error(data?.detail || `Request failed (${res.status})`);
+      const elapsed = Date.now() - t0;
+      setR(data); setMs(elapsed); setS('done');
+      onResult?.({ sql: data.sql, data: data.data, timing: elapsed, attempts: data.react_trace?.attempts || 1 });
+    } catch (e) {
+      setE(e.message || 'Query failed'); setS('error');
+      onResult?.({ error: true });
+    }
+  }
+
+  const trace    = result?.react_trace;
+  const attempts = trace?.thoughts?.length || 0;
+  const corrected = attempts > 1;
 
   return (
-    <div className="hw-card">
-      <div className="hw-card-header">
-        <div className="hw-badge hw-badge-3">03</div>
-        <div>
-          <div className="hw-card-title">Swarm Parallel Multi-Agent</div>
-          <div className="hw-card-sub">
-            Specialized agents run in parallel — schema, SQL generation, safety validation, insights.
-          </div>
+    <div className="hw-card hw-card-l2">
+      <div className="hw-card-head">
+        <div className="hw-badge hw-badge-l2">L2</div>
+        <div className="hw-card-meta">
+          <div className="hw-card-title">ReAct Agent</div>
+          <div className="hw-card-sub">Reasons → Acts → Observes → Repeats</div>
         </div>
-        <div className="hw-arch-tag">4 Agents → Parallel → Synthesize</div>
+        <StatusBadge status={status} />
       </div>
 
-      <div className="hw-input-row">
-        <input className="hw-input" value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && run()} placeholder="Ask a question…" />
-        <button className="hw-btn hw-btn-3" onClick={run} disabled={loading}>
-          {loading ? <><span className="hw-spin" />Running Swarm…</> : 'Run Swarm'}
-        </button>
+      <L2Diagram />
+      <Divider />
+
+      <SectionLabel>Execution</SectionLabel>
+
+      {status === 'idle' && (
+        <p className="hw-idle-msg">Click <strong>Run All 3 Agents</strong> to start.</p>
+      )}
+      {status === 'running' && !trace && (
+        <div className="hw-react-thinking">
+          <span className="hw-thinking-dot" />
+          <span className="hw-thinking-dot" style={{ animationDelay: '.15s' }} />
+          <span className="hw-thinking-dot" style={{ animationDelay: '.3s' }} />
+          <span className="hw-thinking-label">Agent is reasoning…</span>
+        </div>
+      )}
+
+      {(status === 'done' || status === 'error' || (status === 'running' && trace)) && (
+        <div className="hw-exec-body">
+          {corrected && (
+            <div className="hw-corrected-banner">
+              🔄 Self-Corrected &nbsp;·&nbsp; {attempts} attempts made
+            </div>
+          )}
+
+          {trace && (trace.thoughts || []).map((thought, i) => {
+            const base = i * 3;
+            return (
+              <div key={i} className="hw-attempt-group">
+                <div className="hw-attempt-row">
+                  <span className="hw-attempt-chip hw-chip-purple">
+                    {i === 0 ? 'Attempt 1' : `Attempt ${i + 1} — fixing error`}
+                  </span>
+                  {i > 0 && <span className="hw-self-fix-tag">↺ Self-Corrected</span>}
+                </div>
+
+                {visible > base && (
+                  <div className="hw-trace-row hw-trace-think hw-fade-in">
+                    <span className="hw-trace-icon">💭</span>
+                    <div>
+                      <div className="hw-trace-lbl">Thinking</div>
+                      <div className="hw-trace-txt">{thought}</div>
+                    </div>
+                  </div>
+                )}
+                {visible > base + 1 && trace.actions?.[i] && (
+                  <div className="hw-trace-row hw-trace-act hw-fade-in">
+                    <span className="hw-trace-icon">⚡</span>
+                    <div style={{ flex: 1 }}>
+                      <div className="hw-trace-lbl">SQL Generated</div>
+                      <pre className="hw-trace-sql">{trace.actions[i]}</pre>
+                    </div>
+                  </div>
+                )}
+                {visible > base + 2 && trace.observations?.[i] && (
+                  <div className={`hw-trace-row hw-fade-in ${
+                    String(trace.observations[i]).toLowerCase().match(/error|fail/)
+                      ? 'hw-trace-fail' : 'hw-trace-ok'
+                  }`}>
+                    <span className="hw-trace-icon">
+                      {String(trace.observations[i]).toLowerCase().match(/error|fail/) ? '✗' : '✓'}
+                    </span>
+                    <div>
+                      <div className="hw-trace-lbl">Observation</div>
+                      <div className="hw-trace-txt">{trace.observations[i]}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {error && (
+            <div className="hw-error-box">
+              <div className="hw-error-title">❌ Query Failed</div>
+              <div className="hw-error-text">{error}</div>
+            </div>
+          )}
+          {result && (
+            <>
+              <div className="hw-attempt-row">
+                <span className="hw-attempt-chip hw-chip-purple">
+                  {attempts} attempt{attempts !== 1 ? 's' : ''}
+                </span>
+                <TimingBadge ms={ms} />
+              </div>
+              <CodeBlock sql={result.sql} />
+              <DataTable data={result.data} columns={result.columns} />
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="hw-card-footer">
+        <Divider />
+        <div className="hw-key-msg hw-key-purple">
+          💬 Intelligent retry. Learns from mistakes automatically.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Level 3 Card ─────────────────────────────────────────────────────────
+
+const AGENTS = [
+  { id: 'schema',  icon: '🗂️', label: 'Schema Agent',  desc: 'Reads table structure' },
+  { id: 'sql',     icon: '⚡', label: 'SQL Agent',      desc: 'Generates optimized SQL' },
+  { id: 'safety',  icon: '🛡️', label: 'Safety Agent',  desc: 'Validates query safety' },
+  { id: 'insight', icon: '💡', label: 'Insight Agent',  desc: 'Synthesizes key insights' },
+];
+
+function Level3Card({ question, trigger, onResult }) {
+  const [status, setS]   = useState('idle');
+  const [result, setR]   = useState(null);
+  const [error,  setE]   = useState('');
+  const [ms,     setMs]  = useState(null);
+  const [ags,    setAgs] = useState({});
+  const timers           = useRef([]);
+
+  useEffect(() => { if (trigger) run(); }, [trigger]); // eslint-disable-line
+
+  function clearTimers() { timers.current.forEach(clearTimeout); timers.current = []; }
+
+  async function run() {
+    clearTimers();
+    setS('running'); setE(''); setR(null); setMs(null);
+    const init = {}; AGENTS.forEach(a => { init[a.id] = 'waiting'; }); setAgs(init);
+    AGENTS.forEach((a, i) => {
+      timers.current.push(setTimeout(() => setAgs(p => ({ ...p, [a.id]: 'running' })), i * 240));
+    });
+
+    const t0 = Date.now();
+    try {
+      const res = await fetch(`${API}/swarm/pg-query`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok()}` },
+        body:    JSON.stringify({ pg_uri: NEON, question, limit: 50 }),
+      });
+      let data;
+      try { data = await res.json(); } catch { throw new Error(`Server error (${res.status})`); }
+      if (!res.ok) throw new Error(data?.detail || `Request failed (${res.status})`);
+
+      const elapsed = Date.now() - t0;
+      AGENTS.forEach((a, i) => {
+        timers.current.push(setTimeout(() => setAgs(p => ({ ...p, [a.id]: 'done' })), i * 150));
+      });
+
+      const firstOk     = (data.subtask_results || []).find(r => !r.error) || data.subtask_results?.[0] || {};
+      const summaryText = typeof data.summary === 'string'
+        ? data.summary
+        : (data.summary?.text || data.summary?.answer || data.summary?.summary || '');
+
+      timers.current.push(setTimeout(() => {
+        setR({ sql: firstOk.sql || '', data: firstOk.data || [], columns: firstOk.columns || [],
+               rowCount: firstOk.row_count ?? firstOk.data?.length ?? 0,
+               agentsRun: data.agents_run ?? AGENTS.length,
+               summary: summaryText });
+        setMs(elapsed); setS('done');
+        onResult?.({ sql: firstOk.sql, data: firstOk.data, timing: elapsed, agents: data.agents_run });
+      }, AGENTS.length * 150 + 200));
+
+    } catch (e) {
+      setE(e.message || 'Swarm failed'); setS('error');
+      AGENTS.forEach(a => setAgs(p => ({ ...p, [a.id]: 'error' })));
+      onResult?.({ error: true });
+    }
+  }
+
+  const anyAgent = Object.keys(ags).length > 0;
+
+  return (
+    <div className="hw-card hw-card-l3">
+      <div className="hw-card-head">
+        <div className="hw-badge hw-badge-l3">L3</div>
+        <div className="hw-card-meta">
+          <div className="hw-card-title">Swarm Agent</div>
+          <div className="hw-card-sub">Multiple AI agents working in parallel</div>
+        </div>
+        <StatusBadge status={status} />
       </div>
 
-      {error && <div className="hw-error">{error}</div>}
+      <L3Diagram />
+      <Divider />
+
+      <SectionLabel>Execution</SectionLabel>
+
+      {status === 'idle' && (
+        <p className="hw-idle-msg">Click <strong>Run All 3 Agents</strong> to start.</p>
+      )}
 
       {anyAgent && (
-        <div className="hw-agents hw-fadein">
+        <div className="hw-agents-grid">
           {AGENTS.map(a => {
-            const st = agentStates[a.id] || 'waiting';
+            const st = ags[a.id] || 'waiting';
             return (
-              <div key={a.id} className={`hw-agent hw-agent-${st}`}>
-                <div className="hw-agent-header">
-                  <div className="hw-agent-dot" style={{ background: a.color }} />
+              <div key={a.id} className={`hw-agent-card hw-ag-${st}`}>
+                <div className="hw-agent-head">
+                  <span className="hw-agent-icon">{a.icon}</span>
                   <span className="hw-agent-name">{a.label}</span>
-                  <span className="hw-agent-status">
-                    {st === 'waiting' && <span className="hw-agent-tag waiting">Waiting</span>}
-                    {st === 'running' && <><span className="hw-spin hw-spin-sm" /><span className="hw-agent-tag running">Running</span></>}
-                    {st === 'done'    && <span className="hw-agent-tag done">Done ✓</span>}
-                    {st === 'error'   && <span className="hw-agent-tag err">Error</span>}
+                  <span className={`hw-ag-badge hw-ag-badge-${st}`}>
+                    {st === 'waiting' ? '⏳ Waiting' :
+                     st === 'running' ? '🔄 Running' :
+                     st === 'done'    ? '✅ Done'    : '❌ Error'}
                   </span>
                 </div>
                 <div className="hw-agent-desc">{a.desc}</div>
-                {st === 'running' && <div className="hw-agent-progress" style={{ '--c': a.color }} />}
+                {st === 'running' && <div className="hw-agent-bar" />}
               </div>
             );
           })}
         </div>
       )}
 
-      {result && allDone && (
-        <div className="hw-fadein">
-          <div className="hw-swarm-complete">
-            <span className="hw-swarm-ok">✓ All agents completed</span>
-            <span className="hw-swarm-time">{result.totalMs}ms total</span>
+      {error && (
+        <div className="hw-error-box">
+          <div className="hw-error-title">❌ Swarm Failed</div>
+          <div className="hw-error-text">{error}</div>
+        </div>
+      )}
+
+      {result && (
+        <div className="hw-exec-body hw-fade-in">
+          <div className="hw-attempt-row">
+            <span className="hw-attempt-chip hw-chip-green">
+              ✓ {result.agentsRun} agents completed
+            </span>
+            <TimingBadge ms={ms} />
           </div>
-          <div className="hw-stats-row">
-            <div className="hw-stat"><span>{result.row_count ?? 0}</span>Rows</div>
-            <div className="hw-stat"><span>{result.agents_run ?? AGENTS.length}</span>Agents run</div>
-            <div className="hw-stat"><span className="hw-stat-ok">✓</span>Parallel</div>
-          </div>
-          <SqlBlock sql={result.sql} copied={copied}
-            onCopy={() => { navigator.clipboard.writeText(result.sql || ''); setC(true); setTimeout(()=>setC(false),2000); }} />
-          <ResultTable data={result.data} columns={result.columns} />
+          <CodeBlock sql={result.sql} />
+          <DataTable data={result.data} columns={result.columns} />
           {result.summary ? (
             <div className="hw-insight">
-              <div className="hw-insight-label">💡 AI Insight</div>
-              <div className="hw-insight-text">{String(result.summary)}</div>
+              <div className="hw-insight-head">💡 AI Insight</div>
+              <div className="hw-insight-body">{String(result.summary)}</div>
             </div>
           ) : null}
         </div>
       )}
+
+      <div className="hw-card-footer">
+        <Divider />
+        <div className="hw-key-msg hw-key-green">
+          💬 Fully autonomous. Parallel execution. Best accuracy.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Comparison Table ─────────────────────────────────────────────────────
+
+function ComparisonTable({ l1, l2, l3 }) {
+  if (!l1 && !l2 && !l3) return null;
+  const fmt = v => v?.timing ? (v.timing < 1000 ? `${v.timing}ms` : `${(v.timing/1000).toFixed(1)}s`) : '—';
+  const rows = [
+    { feat: 'Agents used',          l1: '1',          l2: '1',         l3: '4'          },
+    { feat: 'Self-correction',      l1: '❌ No',       l2: '✅ Yes',    l3: '✅ Yes'     },
+    { feat: 'Parallel execution',   l1: '❌ No',       l2: '❌ No',     l3: '✅ Yes'     },
+    { feat: 'Max attempts',         l1: '1',           l2: 'Up to 3',   l3: 'Unlimited'  },
+    { feat: 'Time taken',           l1: fmt(l1),       l2: fmt(l2),     l3: fmt(l3)      },
+    { feat: 'Accuracy',             l1: 'Basic',       l2: 'Better',    l3: 'Best ⭐'    },
+  ];
+  return (
+    <div className="hw-compare hw-fade-in">
+      <div className="hw-compare-head">
+        <div className="hw-compare-title">Side-by-Side Comparison</div>
+        <div className="hw-compare-sub">Results from your last run</div>
+      </div>
+      <div className="hw-compare-scroll">
+        <table className="hw-compare-table">
+          <thead>
+            <tr>
+              <th className="hw-cth-feat">Feature</th>
+              <th className="hw-cth hw-cth-l1">
+                <span className="hw-cbadge hw-cbadge-l1">L1</span> Basic Agent
+              </th>
+              <th className="hw-cth hw-cth-l2">
+                <span className="hw-cbadge hw-cbadge-l2">L2</span> ReAct Agent
+              </th>
+              <th className="hw-cth hw-cth-l3">
+                <span className="hw-cbadge hw-cbadge-l3">L3</span> Swarm Agent
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className={i % 2 ? 'hw-crow-alt' : ''}>
+                <td className="hw-cfeat">{r.feat}</td>
+                <td className="hw-cval">{r.l1}</td>
+                <td className="hw-cval">{r.l2}</td>
+                <td className="hw-cval">{r.l3}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────
+
 export default function HelloWorldPage() {
+  const [question, setQ] = useState(DEF_Q);
+  const [trigger,  setT] = useState(0);
+  const [l1,       setL1]= useState(null);
+  const [l2,       setL2]= useState(null);
+  const [l3,       setL3]= useState(null);
+
+  function runAll() { setL1(null); setL2(null); setL3(null); setT(t => t + 1); }
+
   return (
     <div className="hw-page">
+
+      {/* Header */}
       <div className="hw-hero">
-        <div className="hw-hero-grid" />
-        <div className="hw-hero-glow" />
-        <div className="hw-hero-body">
-          <div className="hw-hero-eyebrow">
-            <span className="hw-hero-dot" />
-            Live Demo · SJSU CMPE 295B
-          </div>
+        <div>
+          <div className="hw-hero-eyebrow">✦ Live Demo &nbsp;·&nbsp; SJSU CMPE 295B</div>
           <h1 className="hw-hero-title">AI Agent Architecture</h1>
-          <p className="hw-hero-sub">
-            Three levels of intelligence — from a single agent to a self-correcting ReAct loop
-            to a parallel swarm of specialized agents.
+          <p className="hw-hero-desc">
+            Three levels of AI intelligence on the same question. Watch how each approach handles
+            complexity, errors, and scale differently.
           </p>
         </div>
-        <div className="hw-hero-levels">
-          {['01 Single Agent', '02 ReAct Loop', '03 Swarm'].map((l, i) => (
-            <div key={i} className="hw-hero-level">
-              <div className="hw-hero-level-dot" style={{ background: ['#818cf8','#60a5fa','#34d399'][i] }} />
-              {l}
-            </div>
-          ))}
+        <div className="hw-hero-pills">
+          <div className="hw-hero-pill hw-pill-blue">L1 · Basic</div>
+          <div className="hw-hero-pill hw-pill-purple">L2 · ReAct</div>
+          <div className="hw-hero-pill hw-pill-green">L3 · Swarm</div>
         </div>
       </div>
 
-      <Level1 />
-      <Level2 />
-      <Level3 />
+      {/* Question input */}
+      <div className="hw-input-section">
+        <div className="hw-input-lbl">Question sent to all 3 agents:</div>
+        <div className="hw-input-row">
+          <input
+            className="hw-q-input"
+            value={question}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && runAll()}
+            placeholder="Ask anything about the database…"
+          />
+          <button className="hw-run-btn" onClick={runAll}>
+            ▶ &nbsp;Run All 3 Agents
+          </button>
+        </div>
+        <div className="hw-input-note">
+          Demo DB tables: <code>employees</code> · <code>departments</code> · <code>orders</code> · <code>sales_performance</code>
+        </div>
+      </div>
+
+      {/* Cards */}
+      <div className="hw-grid">
+        <Level1Card question={question} trigger={trigger} onResult={setL1} />
+        <Level2Card question={question} trigger={trigger} onResult={setL2} />
+        <Level3Card question={question} trigger={trigger} onResult={setL3} />
+      </div>
+
+      {/* Comparison */}
+      {(l1 || l2 || l3) && <ComparisonTable l1={l1} l2={l2} l3={l3} />}
+
     </div>
   );
 }
