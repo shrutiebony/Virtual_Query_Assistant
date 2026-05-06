@@ -559,8 +559,6 @@ export default function HelloWorldPage() {
 
       {/* Hero */}
       <div className="aw-hero">
-        <div className="aw-hero-bg" />
-        <div className="aw-hero-glow" />
         <div className="aw-hero-body">
           <div className="aw-hero-eyebrow">AI Agent Architecture · Live Demo</div>
           <h1 className="aw-hero-title">Three Levels of AI Intelligence</h1>
