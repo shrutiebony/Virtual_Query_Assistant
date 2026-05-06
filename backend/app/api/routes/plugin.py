@@ -270,7 +270,6 @@ _RESULT_PAGE_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DB Assistant — Results</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -407,7 +406,7 @@ table.rt td.rn{color:#1e2d45;font-size:11px;font-family:'JetBrains Mono',monospa
       </div>
     </div>
     <div class="chartpad">
-      <div class="chartwrap"><canvas id="myChart"></canvas></div>
+      <div id="chartwrap" style="width:100%"></div>
     </div>
   </div>
 
@@ -439,70 +438,115 @@ function isDate(c){return /date|time|year|month|quarter|week|day/i.test(c)}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function fmt(v){if(v===null||v===undefined)return '<span style="color:#1e2d45">null</span>';if(isNum(v)){const n=parseFloat(v);return Number.isInteger(n)?n.toLocaleString():n.toLocaleString(undefined,{maximumFractionDigits:4})}return esc(String(v))}
 
-/* ── Chart ── */
-const PALETTE=[
-  {bg:'rgba(99,102,241,.8)',  bd:'#818cf8'},
-  {bg:'rgba(139,92,246,.8)', bd:'#a78bfa'},
-  {bg:'rgba(59,130,246,.8)', bd:'#60a5fa'},
-  {bg:'rgba(16,185,129,.8)', bd:'#34d399'},
-  {bg:'rgba(245,158,11,.8)', bd:'#fbbf24'},
-  {bg:'rgba(239,68,68,.8)',  bd:'#f87171'},
-  {bg:'rgba(14,165,233,.8)', bd:'#38bdf8'},
-  {bg:'rgba(168,85,247,.8)', bd:'#c084fc'},
-];
+/* ── Chart (pure SVG — no CDN) ── */
+const COLORS=['#818cf8','#a78bfa','#60a5fa','#34d399','#fbbf24','#f87171','#38bdf8','#c084fc'];
+
+function fmtN(v){
+  const n=parseFloat(v);
+  if(isNaN(n))return String(v??'');
+  if(Math.abs(n)>=1e9)return(n/1e9).toFixed(1)+'B';
+  if(Math.abs(n)>=1e6)return(n/1e6).toFixed(1)+'M';
+  if(Math.abs(n)>=1e3)return(n/1e3).toFixed(1)+'k';
+  return n%1===0?n.toLocaleString():n.toLocaleString(undefined,{maximumFractionDigits:2});
+}
+
+function buildHBarSVG(labels,values){
+  const maxV=Math.max(...values,1);
+  const barH=30,gap=8;
+  const maxLabelLen=Math.max(...labels.map(l=>l.length));
+  const lw=Math.min(160,Math.max(60,maxLabelLen*6.8+12));
+  const svgW=700,rpad=80;
+  const bW=svgW-lw-rpad-12;
+  const svgH=labels.length*(barH+gap)+16;
+  const rows=labels.map((lb,i)=>{
+    const bw=Math.max(4,(values[i]/maxV)*bW);
+    const y=i*(barH+gap)+8;
+    const c=COLORS[i%COLORS.length];
+    const sl=lb.length>22?lb.slice(0,20)+'…':lb;
+    return '<text x="'+(lw-8)+'" y="'+(y+barH/2+4.5)+'" text-anchor="end" font-size="12" fill="#475569" font-family="DM Sans,sans-serif">'+esc(sl)+'</text>'
+      +'<rect x="'+lw+'" y="'+y+'" width="'+bW+'" height="'+barH+'" rx="3" fill="rgba(30,45,69,.4)"/>'
+      +'<rect x="'+lw+'" y="'+y+'" width="'+bw+'" height="'+barH+'" rx="3" fill="'+c+'"/>'
+      +'<text x="'+(lw+bw+7)+'" y="'+(y+barH/2+4.5)+'" font-size="11" fill="#94a3b8" font-family="DM Sans,sans-serif">'+fmtN(values[i])+'</text>';
+  }).join('');
+  return '<svg viewBox="0 0 '+svgW+' '+svgH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">'+rows+'</svg>';
+}
+
+function buildVBarSVG(labels,values){
+  const maxV=Math.max(...values,1);
+  const svgW=700,svgH=280;
+  const pT=20,pB=50,pL=55,pR=20;
+  const cW=svgW-pL-pR,cH=svgH-pT-pB;
+  const bw=Math.min(72,(cW/labels.length)*.72);
+  const bGap=(cW-bw*labels.length)/(labels.length+1);
+  const yTicks=5;
+  let grid='';
+  for(let i=0;i<=yTicks;i++){
+    const y=pT+cH*(1-i/yTicks);
+    const val=maxV*i/yTicks;
+    grid+='<line x1="'+pL+'" y1="'+y+'" x2="'+(pL+cW)+'" y2="'+y+'" stroke="#1e2d45" stroke-width="1"/>'
+      +'<text x="'+(pL-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#334155" font-family="DM Sans,sans-serif">'+fmtN(val)+'</text>';
+  }
+  const bars=labels.map((lb,i)=>{
+    const bh=Math.max(2,(values[i]/maxV)*cH);
+    const x=pL+bGap+i*(bw+bGap);
+    const y=pT+cH-bh;
+    const c=COLORS[i%COLORS.length];
+    const sl=lb.length>10?lb.slice(0,9)+'…':lb;
+    return '<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="4" fill="'+c+'"/>'
+      +'<text x="'+(x+bw/2)+'" y="'+(y-5)+'" text-anchor="middle" font-size="10" fill="#64748b" font-family="DM Sans,sans-serif">'+fmtN(values[i])+'</text>'
+      +'<text x="'+(x+bw/2)+'" y="'+(pT+cH+16)+'" text-anchor="middle" font-size="11" fill="#475569" font-family="DM Sans,sans-serif">'+esc(sl)+'</text>';
+  }).join('');
+  return '<svg viewBox="0 0 '+svgW+' '+svgH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">'+grid+bars+'</svg>';
+}
+
+function buildLineSVG(labels,values){
+  const maxV=Math.max(...values,1),minV=Math.min(...values,0);
+  const range=maxV-minV||1;
+  const svgW=700,svgH=260;
+  const pT=20,pB=45,pL=55,pR=20;
+  const cW=svgW-pL-pR,cH=svgH-pT-pB;
+  const xs=labels.map((_,i)=>pL+(labels.length<2?cW/2:i*(cW/(labels.length-1))));
+  const ys=values.map(v=>pT+cH-(((v-minV)/range)*cH));
+  const yTicks=5;
+  let grid='';
+  for(let i=0;i<=yTicks;i++){
+    const y=pT+cH*(1-i/yTicks);
+    const val=minV+range*i/yTicks;
+    grid+='<line x1="'+pL+'" y1="'+y+'" x2="'+(pL+cW)+'" y2="'+y+'" stroke="#1e2d45" stroke-width="1"/>'
+      +'<text x="'+(pL-6)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="#334155" font-family="DM Sans,sans-serif">'+fmtN(val)+'</text>';
+  }
+  const fillPath='M'+pL+' '+(pT+cH)+' L'+xs.map((x,i)=>x+' '+ys[i]).join(' L')+' L'+xs[xs.length-1]+' '+(pT+cH)+' Z';
+  const linePath='M'+xs.map((x,i)=>x+' '+ys[i]).join(' L');
+  let ticks='';
+  const step=Math.max(1,Math.ceil(labels.length/12));
+  for(let i=0;i<labels.length;i+=step){
+    const sl=labels[i].length>10?labels[i].slice(0,9)+'…':labels[i];
+    ticks+='<text x="'+xs[i]+'" y="'+(pT+cH+16)+'" text-anchor="middle" font-size="10" fill="#475569" font-family="DM Sans,sans-serif">'+esc(sl)+'</text>';
+  }
+  const dots=xs.map((x,i)=>'<circle cx="'+x+'" cy="'+ys[i]+'" r="3.5" fill="#818cf8" stroke="#0a0e1a" stroke-width="2"/>').join('');
+  return '<svg viewBox="0 0 '+svgW+' '+svgH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">'
+    +'<defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6366f1" stop-opacity=".2"/><stop offset="100%" stop-color="#6366f1" stop-opacity="0"/></linearGradient></defs>'
+    +grid
+    +'<path d="'+fillPath+'" fill="url(#lg)"/>'
+    +'<path d="'+linePath+'" fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+    +dots+ticks
+    +'</svg>';
+}
 
 function buildChart(){
   if(!DATA.length){document.getElementById('chartcard').style.display='none';return}
   const numCols=COLS.filter(c=>DATA.every(r=>isNum(r[c])));
   const catCols=COLS.filter(c=>!numCols.includes(c));
   if(!numCols.length){document.getElementById('chartcard').style.display='none';return}
-
   const labelCol=catCols[0]||null;
-  const dispNums=numCols.slice(0,5);
-  const useLine=Boolean(labelCol&&isDate(labelCol))||DATA.length>18;
+  const values=DATA.map(r=>parseFloat(r[numCols[0]])||0);
   const labels=labelCol?DATA.map(r=>String(r[labelCol]??'')):DATA.map((_,i)=>String(i+1));
-
+  const useLine=Boolean(labelCol&&isDate(labelCol))||DATA.length>15;
   document.getElementById('chartbadge').textContent=(useLine?'Line':'Bar')+' chart';
-  Chart.defaults.color='#475569';
-  Chart.defaults.borderColor='#1e2d45';
-  Chart.defaults.font.family="'DM Sans',sans-serif";
-
-  const datasets=dispNums.map((col,i)=>{
-    const p=PALETTE[i%PALETTE.length];
-    const vals=DATA.map(r=>parseFloat(r[col])||0);
-    if(useLine){
-      return{label:col,data:vals,borderColor:p.bd,backgroundColor:p.bg.replace('.8','.1'),
-        borderWidth:2.5,pointRadius:DATA.length<=20?4:0,pointHoverRadius:6,
-        pointBackgroundColor:p.bd,tension:.4,fill:dispNums.length===1};
-    }
-    const multiColor=dispNums.length===1;
-    return{label:col,data:vals,
-      backgroundColor:multiColor?DATA.map((_,j)=>PALETTE[j%PALETTE.length].bg):p.bg,
-      borderColor:multiColor?DATA.map((_,j)=>PALETTE[j%PALETTE.length].bd):p.bd,
-      borderWidth:1.5,borderRadius:6,borderSkipped:false};
-  });
-
-  new Chart(document.getElementById('myChart').getContext('2d'),{
-    type:useLine?'line':'bar',
-    data:{labels,datasets},
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      animation:{duration:900,easing:'easeOutQuart'},
-      plugins:{
-        legend:{display:dispNums.length>1,labels:{color:'#64748b',font:{size:11},boxWidth:12,padding:16}},
-        tooltip:{backgroundColor:'#1a2234',borderColor:'#1e2d45',borderWidth:1,
-          titleColor:'#f1f5f9',bodyColor:'#94a3b8',padding:10,cornerRadius:8,
-          callbacks:{label:c=>` ${c.dataset.label||'Value'}: ${Number(c.parsed.y).toLocaleString()}`}}
-      },
-      scales:{
-        x:{grid:{color:'rgba(30,45,69,.4)',drawBorder:false},
-           ticks:{color:'#334155',maxRotation:30,font:{size:11},maxTicksLimit:14}},
-        y:{grid:{color:'rgba(30,45,69,.4)',drawBorder:false},
-           ticks:{color:'#334155',font:{size:11},callback:v=>Number(v).toLocaleString()},
-           beginAtZero:true}
-      }
-    }
-  });
+  const wrap=document.getElementById('chartwrap');
+  if(useLine) wrap.innerHTML=buildLineSVG(labels,values);
+  else if(DATA.length<=8) wrap.innerHTML=buildVBarSVG(labels,values);
+  else wrap.innerHTML=buildHBarSVG(labels,values);
 }
 
 /* ── Table ── */
