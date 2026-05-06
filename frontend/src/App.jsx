@@ -14,6 +14,7 @@ import AppLayout    from './components/layout/AppLayout';
 import BenchmarkDashboard from './pages/BenchmarkDashboard';
 import PluginPage from './components/PluginPage';
 import HelloWorldPage from './pages/HelloWorldPage';
+import SupabasePage from './pages/SupabasePage';
 
 
 function PrivateRoute({ children }) {
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="benchmark"   element={<BenchmarkDashboard />} />
             <Route path="plugin"      element={<PluginPage />} />
             <Route path="hello-world" element={<HelloWorldPage />} />
+            <Route path="supabase"    element={<SupabasePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

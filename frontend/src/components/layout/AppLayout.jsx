@@ -7,6 +7,16 @@ import {
 } from 'lucide-react';
 import './AppLayout.css';
 
+/* Supabase lightning bolt — brand green #3ECF8E */
+function SupabaseNavIcon({ size = 17, ...props }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M13.976 22.042c-.371.44-1.101.185-1.101-.393V13.5H3.75c-.76 0-1.17-.895-.688-1.47L10.024 3.458c.371-.44 1.101-.185 1.101.393V10.5h9.125c.76 0 1.17.895.688 1.47l-6.962 10.072z"
+        fill="#3ECF8E"/>
+    </svg>
+  );
+}
+
 /* MySQL official dolphin logo — simplified SVG, currentColor */
 function MySQLIcon({ size = 17, ...props }) {
   return (
@@ -22,7 +32,8 @@ const NAV = [
   { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/query/postgres', icon: Database,        label: 'PostgreSQL' },
   { to: '/query/mongo',    icon: Leaf,            label: 'MongoDB' },
-  { to: '/mysql',          icon: MySQLIcon,       label: 'MySQL' },
+  { to: '/mysql',          icon: MySQLIcon,        label: 'MySQL' },
+  { to: '/supabase',       icon: SupabaseNavIcon,  label: 'Supabase' },
   { to: '/datasets',       icon: FolderOpen,      label: 'Datasets' },
   { to: '/connections',    icon: Link2,           label: 'Connections' },
   { to: '/swarm', icon: Zap, label: 'Swarm Agents' },
