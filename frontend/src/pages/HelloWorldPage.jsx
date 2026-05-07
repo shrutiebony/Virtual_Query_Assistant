@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { authAPI } from '../services/api';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts';
+import { Zap, Sparkles } from 'lucide-react';
+import { Badge } from '../components/ui';
+import './ChatQueryPage.css';
 import './HelloWorldPage.css';
 
-const API   = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const NEON  = 'postgresql://neondb_owner:npg_Rn56FbVsmiQI@ep-wandering-art-amtq6t2m-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require';
+const API  = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const NEON = 'postgresql://neondb_owner:npg_Rn56FbVsmiQI@ep-wandering-art-amtq6t2m-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require';
 const DEF_Q = 'What is the total revenue per employee department?';
 
 const DB_TYPE_MAP = {
@@ -13,26 +19,25 @@ const DB_TYPE_MAP = {
   mongodb:  'mongodb',
 };
 
-const L1_COLOR = '#2563eb';
-const L2_COLOR = '#7c3aed';
-const L3_COLOR = '#059669';
-
-function tok() { return localStorage.getItem('token') || ''; }
-
 const DATA_SOURCES = [
-  { id: 'demo',     label: 'Demo Database', color: '#6366f1', description: 'Pre-loaded Neon PostgreSQL — no setup needed', needsConn: false },
-  { id: 'postgres', label: 'PostgreSQL',    color: '#336791', description: 'Any PostgreSQL database',                      needsConn: true,  placeholder: 'postgresql://user:password@host:5432/database' },
-  { id: 'supabase', label: 'Supabase',      color: '#3ECF8E', description: 'Supabase project (PostgreSQL)',               needsConn: true,  placeholder: 'postgresql://postgres:password@db.xxx.supabase.co:5432/postgres' },
-  { id: 'mysql',    label: 'MySQL',         color: '#F29111', description: 'MySQL / MariaDB database',                   needsConn: true,  placeholder: 'mysql://user:password@host:3306/database' },
-  { id: 'mongodb',  label: 'MongoDB',       color: '#47A248', description: 'MongoDB Atlas or self-hosted',               needsConn: true,  placeholder: 'mongodb+srv://user:password@cluster.mongodb.net/database' },
-  { id: 'uploaded', label: 'Upload CSV',    color: '#8b5cf6', description: 'Upload a CSV file and query instantly',      needsConn: false },
+  { id: 'demo',     label: 'Demo Database', color: '#6366f1', needsConn: false },
+  { id: 'postgres', label: 'PostgreSQL',    color: '#336791', needsConn: true },
+  { id: 'supabase', label: 'Supabase',      color: '#3ECF8E', needsConn: true },
+  { id: 'mysql',    label: 'MySQL',         color: '#F29111', needsConn: true },
+  { id: 'mongodb',  label: 'MongoDB',       color: '#47A248', needsConn: true },
+  { id: 'uploaded', label: 'Upload CSV',    color: '#8b5cf6', needsConn: false },
 ];
 
-const DEFAULT_SUGGESTIONS = [
-  'What is the total revenue per employee department?',
+const SUGGESTIONS = [
+  'What is the total revenue per department?',
   'Which department has the highest average salary?',
   'Show top 5 orders by revenue',
+  'Count employees per department',
 ];
+
+const CHART_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#14b8a6'];
+
+function tok() { return localStorage.getItem('token') || ''; }
 
 function parseMySQLUri(uri) {
   const m = uri.match(/^mysql:\/\/([^:]+):([^@]+)@([^:/]+):?(\d+)?\/(.+)$/);
@@ -40,145 +45,190 @@ function parseMySQLUri(uri) {
   return { username: m[1], password: m[2], host: m[3], port: parseInt(m[4]) || 3306, database: m[5] };
 }
 
-// ── Atoms ─────────────────────────────────────────────────────────────────
+// ── Status dot ─────────────────────────────────────────────────────────────
 
 function StatusDot({ status }) {
-  return <span className={`aw-dot aw-dot-${status}`} title={status} />;
+  return <span className={`hw-dot hw-dot-${status}`} />;
 }
 
-function Tag({ color, children }) {
-  return <span className="aw-tag" style={{ background: `${color}12`, color, border: `1px solid ${color}30` }}>{children}</span>;
-}
+// ── Chart ──────────────────────────────────────────────────────────────────
 
-function Chip({ label, color }) {
-  return <span className="aw-chip" style={{ background: `${color}10`, color, borderColor: `${color}25` }}>{label}</span>;
-}
-
-function SLabel({ children }) {
-  return <div className="aw-section-label">{children}</div>;
-}
-
-function Rule() { return <hr className="aw-rule" />; }
-
-function CodeBlock({ sql }) {
-  const [copied, setCopied] = useState(false);
-  if (!sql) return null;
-  const doCopy = () => { navigator.clipboard.writeText(sql); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+function ResultChart({ data, color = '#6366f1' }) {
+  if (!data?.length) return null;
+  const cols    = Object.keys(data[0]);
+  const numCols = cols.filter(k => typeof data[0][k] === 'number');
+  const txtCols = cols.filter(k => typeof data[0][k] !== 'number');
+  if (!numCols.length) return null;
+  const xKey = txtCols[0] || cols[0];
   return (
-    <div className="aw-code-card">
-      <div className="aw-code-bar">
-        <span className="aw-code-lang">Generated SQL / Query</span>
-        <button className={`aw-copy-btn ${copied ? 'copied' : ''}`} onClick={doCopy}>
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+    <div style={{
+      marginTop: 14, background: '#fafafa',
+      border: '1px solid #f1f3f7', borderRadius: 10, padding: '12px 8px 8px',
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 700, color: '#9ca3af',
+        textTransform: 'uppercase', letterSpacing: '0.06em',
+        marginBottom: 8, paddingLeft: 4,
+      }}>
+        Visualization
       </div>
-      <pre className="aw-code">{sql}</pre>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={data.slice(0, 12)} margin={{ top: 4, right: 12, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f3f7" vertical={false} />
+          <XAxis
+            dataKey={xKey}
+            tick={{ fontSize: 10, fill: '#6b7591' }}
+            tickLine={false}
+            axisLine={{ stroke: '#e5e7eb' }}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: '#6b7591' }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={v => Number(v).toLocaleString()}
+          />
+          <Tooltip
+            contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }}
+            formatter={v => [Number(v).toLocaleString()]}
+          />
+          {numCols.slice(0, 2).map((k, i) => (
+            <Bar key={k} dataKey={k} fill={CHART_COLORS[i] || color} radius={[6, 6, 0, 0]} maxBarSize={48} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
+// ── SQL block ──────────────────────────────────────────────────────────────
+
+function SqlBlock({ sql }) {
+  const [copied, setCopied] = useState(false);
+  if (!sql) return null;
+  const copy = () => { navigator.clipboard.writeText(sql); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Generated SQL
+        </span>
+        <button onClick={copy} style={{ fontSize: 10, color: copied ? '#059669' : '#6366f1', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <pre style={{
+        fontSize: 11, background: '#1e1b4b', color: '#e0e7ff',
+        border: '1px solid #312e81', borderRadius: 8,
+        padding: '12px 14px', overflow: 'auto', whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word', margin: 0, fontFamily: 'monospace', lineHeight: 1.6,
+      }}>
+        {sql}
+      </pre>
+    </div>
+  );
+}
+
+// ── Data table ─────────────────────────────────────────────────────────────
+
 function DataTable({ data, columns }) {
-  if (!Array.isArray(data) || !data.length) return null;
-  const first = data.find(r => r && typeof r === 'object') || {};
-  const cols  = columns?.length ? columns : Object.keys(first);
+  if (!data?.length) return null;
+  const cols = columns?.length ? columns : Object.keys(data[0] || {});
   if (!cols.length) return null;
   return (
-    <div className="aw-table-wrap">
-      <table className="aw-table">
-        <thead><tr>{cols.map(c => <th key={c}>{c}</th>)}</tr></thead>
+    <div style={{ marginTop: 12, overflowX: 'auto', borderRadius: 8, border: '1px solid #e5e7eb', maxHeight: 260, overflowY: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+        <thead style={{ position: 'sticky', top: 0 }}>
+          <tr>
+            {cols.map(c => (
+              <th key={c} style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 700, color: '#374151', borderBottom: '2px solid #e5e7eb', background: '#f9fafb', fontSize: 11, whiteSpace: 'nowrap' }}>
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
         <tbody>
-          {data.slice(0, 6).map((row, i) => (
-            <tr key={i}>{cols.map(c => <td key={c}>{String(row[c] ?? '')}</td>)}</tr>
+          {data.slice(0, 10).map((row, i) => (
+            <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+              {cols.map(c => (
+                <td key={c} style={{ padding: '6px 12px', borderBottom: '1px solid #f3f4f6', color: '#374151' }}>
+                  {row[c] == null
+                    ? <span style={{ color: '#d1d5db' }}>null</span>
+                    : typeof row[c] === 'number'
+                      ? <strong style={{ color: '#374151' }}>{Number(row[c]).toLocaleString()}</strong>
+                      : String(row[c])
+                  }
+                </td>
+              ))}
+            </tr>
           ))}
         </tbody>
       </table>
-      {data.length > 6 && <div className="aw-table-more">{data.length - 6} more rows not shown</div>}
+      {data.length > 10 && (
+        <div style={{ textAlign: 'center', padding: '6px', fontSize: 11, color: '#9ca3af', background: '#fafafa' }}>
+          {data.length - 10} more rows
+        </div>
+      )}
     </div>
   );
 }
+
+// ── Skeleton ───────────────────────────────────────────────────────────────
 
 function Skeleton() {
   return (
-    <div className="aw-skeleton">
-      <div className="aw-skel aw-skel-md" />
-      <div className="aw-skel aw-skel-sm" />
-      <div className="aw-skel aw-skel-lg" />
+    <div style={{ padding: '20px 0' }}>
+      {[80, 55, 90].map((w, i) => (
+        <div key={i} style={{
+          height: 12, borderRadius: 6, marginBottom: 10, width: `${w}%`,
+          background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
+          backgroundSize: '200% 100%', animation: 'hw-shimmer 1.5s infinite',
+        }} />
+      ))}
     </div>
   );
 }
 
-function TimingBadge({ ms }) {
-  if (!ms) return null;
-  const label = ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
-  return <span className="aw-timing">{label}</span>;
-}
+// ── Mini pipeline strip ────────────────────────────────────────────────────
 
-// ── Pipeline diagrams — no emojis, pure text + CSS ───────────────────────
-
-function L1Pipeline() {
-  const steps = ['Receive question', 'Generate SQL via AI', 'Execute on database', 'Return results'];
+function Pipeline({ steps, color }) {
   return (
-    <div className="aw-pipeline">
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', margin: '10px 0 4px' }}>
       {steps.map((s, i) => (
         <React.Fragment key={i}>
-          <div className="aw-pipe-node aw-pipe-blue">{s}</div>
-          {i < steps.length - 1 && <div className="aw-pipe-arrow" />}
+          <span style={{
+            fontSize: 10, fontWeight: 600, padding: '3px 8px',
+            background: `${color}10`, color, border: `1px solid ${color}25`,
+            borderRadius: 5, whiteSpace: 'nowrap',
+          }}>{s}</span>
+          {i < steps.length - 1 && <span style={{ color: '#cbd5e1', fontSize: 11 }}>→</span>}
         </React.Fragment>
       ))}
     </div>
   );
 }
 
-function L2Pipeline() {
-  return (
-    <div className="aw-pipeline-react">
-      <div className="aw-react-forward">
-        {['Question', 'Reason about context', 'Write SQL', 'Execute & observe'].map((s, i, arr) => (
-          <React.Fragment key={i}>
-            <div className="aw-pipe-node aw-pipe-purple">{s}</div>
-            {i < arr.length - 1 && <div className="aw-pipe-arrow" />}
-          </React.Fragment>
-        ))}
-      </div>
-      <div className="aw-react-back">
-        <div className="aw-react-back-line" />
-        <div className="aw-react-back-label">If execution fails — reads the error and tries again (up to 3 attempts)</div>
-        <div className="aw-react-back-line" />
-      </div>
-    </div>
-  );
-}
+// ── Level description header ───────────────────────────────────────────────
 
-function L3Pipeline() {
-  const agents = ['Schema Reader', 'SQL Generator', 'Safety Validator', 'Insight Synthesiser'];
+function LevelHeader({ color, title, sub, steps }) {
   return (
-    <div className="aw-pipeline-swarm">
-      <div className="aw-pipe-node aw-pipe-green" style={{ flexShrink: 0 }}>Question</div>
-      <div className="aw-swarm-fork">
-        <div className="aw-swarm-lines">
-          {agents.map((_, i) => <div key={i} className="aw-swarm-tick" />)}
-        </div>
-        <div className="aw-swarm-agents">
-          {agents.map(a => (
-            <div key={a} className="aw-swarm-agent-node">{a}</div>
-          ))}
-        </div>
-        <div className="aw-swarm-lines">
-          {agents.map((_, i) => <div key={i} className="aw-swarm-tick" />)}
-        </div>
-      </div>
-      <div className="aw-pipe-node aw-pipe-green" style={{ flexShrink: 0 }}>Final answer</div>
+    <div style={{
+      borderLeft: `3px solid ${color}`, paddingLeft: 14, marginBottom: 16,
+      background: `${color}06`, borderRadius: '0 8px 8px 0', padding: '12px 14px',
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.6, marginBottom: 6 }}>{sub}</div>
+      <Pipeline steps={steps} color={color} />
     </div>
   );
 }
 
 // ── Level 1 ───────────────────────────────────────────────────────────────
 
-function Level1({ question, trigger, onResult, source }) {
+function Level1({ question, trigger, source, onResult }) {
   const [status, setS] = useState('idle');
   const [result, setR] = useState(null);
   const [error,  setE] = useState('');
-  const [ms,     setMs]= useState(null);
+  const [ms,     setMs] = useState(null);
 
   useEffect(() => { if (trigger) run(); }, [trigger]); // eslint-disable-line
 
@@ -189,7 +239,6 @@ function Level1({ question, trigger, onResult, source }) {
       const body = { question, db_type: source.id };
       if (source.id !== 'demo') body.connection_string = source.connectionString;
       if (source.id === 'uploaded') { body.tables = source.tables; delete body.connection_string; }
-
       const res  = await fetch(`${API}/plugin/query`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -202,58 +251,36 @@ function Level1({ question, trigger, onResult, source }) {
     } catch (e) { setE(e.message || 'Query failed'); setS('error'); onResult?.({ error: true }); }
   }
 
+  const color = '#2563eb';
   return (
-    <div className="aw-card" style={{ borderTop: `3px solid ${L1_COLOR}` }}>
-      {/* Header */}
-      <div className="aw-card-head">
-        <div className="aw-level-badge" style={{ background: `${L1_COLOR}12`, color: L1_COLOR, borderColor: `${L1_COLOR}25` }}>L1</div>
-        <div className="aw-card-titles">
-          <div className="aw-card-title">Single Agent</div>
-          <div className="aw-card-sub">One question in, one answer out — no reasoning, no retry</div>
-        </div>
-        <StatusDot status={status} />
-      </div>
-
-      {/* What happens */}
-      <div className="aw-explain">
-        <SLabel>What Happens</SLabel>
-        <p className="aw-explain-text">
-          The question is passed directly to a large language model (Gemini). The model generates
-          SQL, the database executes it, and the result is returned. There is no error checking —
-          if the SQL fails, the agent stops.
-        </p>
-        <L1Pipeline />
-      </div>
-
-      <Rule />
-      <SLabel>Execution</SLabel>
-
-      {status === 'idle' && <p className="aw-idle">Press <strong>Run All</strong> to execute.</p>}
+    <div>
+      <LevelHeader
+        color={color}
+        title="Single Agent — one shot, no retry"
+        sub="The question goes directly to the AI. It generates SQL, the database runs it, results are returned. No error recovery — if the SQL fails, the agent stops."
+        steps={['Question', 'Generate SQL', 'Execute', 'Return results']}
+      />
+      {status === 'idle' && <div className="cqp-welcome" style={{ padding: '40px 0' }}><Zap size={22} color={color} /><div className="cqp-welcome-title" style={{ fontSize: '1rem' }}>Press Run to execute this agent</div></div>}
       {status === 'running' && <Skeleton />}
-
-      {(status === 'done' || status === 'error') && (
-        <div className="aw-exec">
-          <div className="aw-exec-row">
-            <Chip label="Attempt 1 of 1" color={L1_COLOR} />
-            <TimingBadge ms={ms} />
+      {status === 'error'   && <div className="hw-error">{error}</div>}
+      {status === 'done' && result && (
+        <div>
+          <div className="hw-meta">
+            <span className="hw-badge" style={{ background: `${color}12`, color, borderColor: `${color}25` }}>1 attempt</span>
+            {ms && <span className="hw-time">{ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(1)}s`}</span>}
           </div>
-          {error
-            ? <div className="aw-error"><div className="aw-error-head">Execution failed — agent stopped</div><div className="aw-error-body">{error}</div></div>
-            : <><CodeBlock sql={result?.sql} /><DataTable data={result?.preview} columns={result?.preview?.[0] ? Object.keys(result.preview[0]) : []} /></>
-          }
+          <SqlBlock sql={result.sql} />
+          <ResultChart data={result.preview} color={color} />
+          <DataTable data={result.preview} />
         </div>
       )}
-
-      <div className="aw-footer" style={{ borderTop: `1px solid ${L1_COLOR}15`, background: `${L1_COLOR}06` }}>
-        <strong>Characteristic:</strong> Fastest, but no recovery from mistakes. Suitable for simple, well-defined queries.
-      </div>
     </div>
   );
 }
 
 // ── Level 2 ───────────────────────────────────────────────────────────────
 
-function Level2({ question, trigger, onResult, source }) {
+function Level2({ question, trigger, source, onResult }) {
   const [status, setS]  = useState('idle');
   const [result, setR]  = useState(null);
   const [error,  setE]  = useState('');
@@ -277,26 +304,19 @@ function Level2({ question, trigger, onResult, source }) {
     const t0 = Date.now();
     try {
       let res, data;
-
       if (source.id === 'mysql') {
         const parsed = parseMySQLUri(source.connectionString);
         if (!parsed) throw new Error('Invalid MySQL URI');
         res = await fetch(`${API}/mysql/nl-query`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok()}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
           body: JSON.stringify({ ...parsed, question, tables: [] }),
         });
       } else if (source.id === 'mongodb') {
-        const { MongoClient } = {};
         res = await fetch(`${API}/mongo/nl-query`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok()}` },
-          body: JSON.stringify({
-            mongo_uri: source.connectionString,
-            db_name: source.dbName || 'test',
-            collection: source.connectedTables[0] || 'data',
-            question,
-          }),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
+          body: JSON.stringify({ mongo_uri: source.connectionString, db_name: source.dbName || 'test', collection: source.connectedTables[0] || 'data', question }),
         });
       } else {
         const pg_uri = source.id === 'demo' ? NEON : source.connectionString;
@@ -305,7 +325,6 @@ function Level2({ question, trigger, onResult, source }) {
           body: JSON.stringify({ pg_uri, question, react: true, limit: 50 }),
         });
       }
-
       try { data = await res.json(); } catch { throw new Error(`Server error (${res.status})`); }
       if (!res.ok) throw new Error(data?.detail || `Failed (${res.status})`);
       const elapsed = Date.now() - t0;
@@ -314,100 +333,75 @@ function Level2({ question, trigger, onResult, source }) {
     } catch (e) { setE(e.message); setS('error'); onResult?.({ error: true }); }
   }
 
-  const trace    = result?.react_trace;
+  const color = '#7c3aed';
+  const trace = result?.react_trace;
   const attempts = trace?.thoughts?.length || 0;
 
   return (
-    <div className="aw-card" style={{ borderTop: `3px solid ${L2_COLOR}` }}>
-      <div className="aw-card-head">
-        <div className="aw-level-badge" style={{ background: `${L2_COLOR}12`, color: L2_COLOR, borderColor: `${L2_COLOR}25` }}>L2</div>
-        <div className="aw-card-titles">
-          <div className="aw-card-title">ReAct Agent</div>
-          <div className="aw-card-sub">Reason, Act, Observe — self-corrects on failure</div>
-        </div>
-        <StatusDot status={status} />
-      </div>
+    <div>
+      <LevelHeader
+        color={color}
+        title="ReAct Agent — reason, act, observe, retry"
+        sub="The agent thinks about the schema, writes SQL, executes it, and reads the result. If it fails it reads the error and tries a corrected query — up to 3 times."
+        steps={['Reason', 'Write SQL', 'Execute', 'Observe', '→ retry on error']}
+      />
 
-      <div className="aw-explain">
-        <SLabel>What Happens</SLabel>
-        <p className="aw-explain-text">
-          ReAct stands for <em>Reason + Act</em>. The agent does not just generate SQL — it first
-          thinks about the schema and question, generates SQL, executes it, and reads the result.
-          If execution fails, it reads the error message and reasons about how to correct the query,
-          then tries again. This loop repeats until success or the attempt limit is reached.
-        </p>
-        <L2Pipeline />
-      </div>
+      {status === 'idle' && <div className="cqp-welcome" style={{ padding: '40px 0' }}><Zap size={22} color={color} /><div className="cqp-welcome-title" style={{ fontSize: '1rem' }}>Press Run to execute this agent</div></div>}
 
-      <Rule />
-      <SLabel>Execution trace</SLabel>
-
-      {status === 'idle' && <p className="aw-idle">Press <strong>Run All</strong> to execute.</p>}
       {status === 'running' && !trace && (
-        <div className="aw-thinking">
-          <div className="aw-thinking-bar" />
-          <span>Agent is reasoning about the question and schema…</span>
+        <div style={{ padding: '12px 0' }}>
+          <div className="hw-thinking-bar" style={{ '--c': color }} />
+          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8, fontStyle: 'italic' }}>
+            Agent is reasoning about the question and schema…
+          </p>
         </div>
       )}
 
-      {(status === 'done' || status === 'error' || trace) && (
-        <div className="aw-exec">
-          {attempts > 1 && (
-            <div className="aw-correction-notice" style={{ borderColor: `${L2_COLOR}30`, background: `${L2_COLOR}08` }}>
-              Self-corrected — completed in {attempts} attempts
+      {status === 'error' && <div className="hw-error">{error}</div>}
+
+      {/* Trace */}
+      {trace && (trace.thoughts || []).map((thought, i) => {
+        const base = i * 3;
+        return (
+          <div key={i} style={{ margin: '10px 0', border: `1px solid ${color}20`, borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ background: `${color}08`, padding: '6px 12px', fontSize: 11, fontWeight: 700, color, borderBottom: `1px solid ${color}15` }}>
+              Attempt {i + 1}{i > 0 && <span style={{ fontWeight: 500, opacity: 0.7 }}> — correcting error</span>}
             </div>
-          )}
-
-          {trace && (trace.thoughts || []).map((thought, i) => {
-            const base = i * 3;
-            return (
-              <div key={i} className="aw-attempt-block">
-                <div className="aw-attempt-header">
-                  <span className="aw-attempt-num" style={{ background: `${L2_COLOR}12`, color: L2_COLOR }}>
-                    Attempt {i + 1}
-                    {i > 0 && <span className="aw-retry-label"> — correcting previous error</span>}
-                  </span>
-                </div>
-
-                {visible > base && (
-                  <div className="aw-trace-item aw-trace-think aw-fadein">
-                    <div className="aw-trace-label">Reasoning</div>
-                    <div className="aw-trace-content aw-trace-italic">{thought}</div>
-                  </div>
-                )}
-                {visible > base + 1 && trace.actions?.[i] && (
-                  <div className="aw-trace-item aw-trace-act aw-fadein">
-                    <div className="aw-trace-label">SQL written</div>
-                    <pre className="aw-trace-code">{trace.actions[i]}</pre>
-                  </div>
-                )}
-                {visible > base + 2 && trace.observations?.[i] && (
-                  <div className={`aw-trace-item aw-fadein ${String(trace.observations[i]).match(/error|fail/i) ? 'aw-trace-fail' : 'aw-trace-ok'}`}>
-                    <div className="aw-trace-label">Execution result</div>
-                    <div className="aw-trace-content">{trace.observations[i]}</div>
-                  </div>
-                )}
+            {visible > base && (
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f3f4f6', background: '#faf5ff' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', marginBottom: 4 }}>Reasoning</div>
+                <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.6, fontStyle: 'italic' }}>{thought}</div>
               </div>
-            );
-          })}
+            )}
+            {visible > base + 1 && trace.actions?.[i] && (
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f3f4f6', background: '#f8fafc' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', marginBottom: 4 }}>SQL written</div>
+                <pre style={{ fontSize: 11, fontFamily: 'monospace', color: '#1e1b4b', margin: 0, whiteSpace: 'pre-wrap' }}>{trace.actions[i]}</pre>
+              </div>
+            )}
+            {visible > base + 2 && trace.observations?.[i] && (
+              <div style={{ padding: '8px 12px', background: String(trace.observations[i]).match(/error|fail/i) ? '#fef2f2' : '#f0fdf4' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: String(trace.observations[i]).match(/error|fail/i) ? '#dc2626' : '#059669', textTransform: 'uppercase', marginBottom: 4 }}>Result</div>
+                <div style={{ fontSize: 12, color: '#374151' }}>{trace.observations[i]}</div>
+              </div>
+            )}
+          </div>
+        );
+      })}
 
-          {error && <div className="aw-error"><div className="aw-error-head">Execution failed</div><div className="aw-error-body">{error}</div></div>}
-
-          {result && (
-            <div className="aw-exec-row" style={{ marginTop: 14 }}>
-              <Chip label={`${attempts} attempt${attempts !== 1 ? 's' : ''}`} color={L2_COLOR} />
-              <TimingBadge ms={ms} />
-            </div>
-          )}
-          <CodeBlock sql={result?.sql} />
-          <DataTable data={result?.data} columns={result?.columns} />
+      {status === 'done' && result && (
+        <div style={{ marginTop: 8 }}>
+          <div className="hw-meta">
+            <span className="hw-badge" style={{ background: `${color}12`, color, borderColor: `${color}25` }}>
+              {attempts} attempt{attempts !== 1 ? 's' : ''}
+            </span>
+            {ms && <span className="hw-time">{ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(1)}s`}</span>}
+          </div>
+          <SqlBlock sql={result.sql} />
+          <ResultChart data={result.data} color={color} />
+          <DataTable data={result.data} columns={result.columns} />
         </div>
       )}
-
-      <div className="aw-footer" style={{ borderTop: `1px solid ${L2_COLOR}15`, background: `${L2_COLOR}06` }}>
-        <strong>Characteristic:</strong> Slower than Level 1, but recovers from mistakes.
-        The agent reads its own errors and adjusts — no human intervention needed.
-      </div>
     </div>
   );
 }
@@ -415,22 +409,21 @@ function Level2({ question, trigger, onResult, source }) {
 // ── Level 3 ───────────────────────────────────────────────────────────────
 
 const SWARM_AGENTS = [
-  { id: 'schema',  label: 'Schema Reader',       desc: 'Reads all tables and column types from the database' },
-  { id: 'sql',     label: 'SQL Generator',        desc: 'Writes and self-corrects SQL using ReAct loop' },
-  { id: 'safety',  label: 'Safety Validator',     desc: 'Checks the query for injection and data-safety issues' },
-  { id: 'insight', label: 'Insight Synthesiser',  desc: 'Interprets the results and writes a plain-English summary' },
+  { id: 'schema',  label: 'Schema Reader',      desc: 'Reads all tables and column types from the database' },
+  { id: 'sql',     label: 'SQL Generator',       desc: 'Writes and self-corrects the SQL query' },
+  { id: 'safety',  label: 'Safety Validator',    desc: 'Checks for injection and data-safety issues' },
+  { id: 'insight', label: 'Insight Synthesiser', desc: 'Interprets results and writes a plain-English summary' },
 ];
 
-function Level3({ question, trigger, onResult, source }) {
-  const [status, setS]  = useState('idle');
-  const [result, setR]  = useState(null);
-  const [error,  setE]  = useState('');
+function Level3({ question, trigger, source, onResult }) {
+  const [status, setS] = useState('idle');
+  const [result, setR] = useState(null);
+  const [error,  setE] = useState('');
   const [ms,     setMs] = useState(null);
-  const [ags,    setAgs]= useState({});
-  const timers          = useRef([]);
+  const [ags,    setAgs] = useState({});
+  const timers = useRef([]);
 
   useEffect(() => { if (trigger) run(); }, [trigger]); // eslint-disable-line
-
   function clearT() { timers.current.forEach(clearTimeout); timers.current = []; }
 
   async function run() {
@@ -443,36 +436,28 @@ function Level3({ question, trigger, onResult, source }) {
     const t0 = Date.now();
     try {
       let res, data;
-
       if (source.id === 'mysql') {
         const parsed = parseMySQLUri(source.connectionString);
         if (!parsed) throw new Error('Invalid MySQL URI');
         res = await fetch(`${API}/swarm/mysql-query`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok()}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
           body: JSON.stringify({ ...parsed, question, limit: 50 }),
         });
       } else if (source.id === 'mongodb') {
         res = await fetch(`${API}/swarm/mongo-query`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok()}` },
-          body: JSON.stringify({
-            mongo_uri: source.connectionString,
-            db_name: source.dbName || 'test',
-            collections: source.connectedTables,
-            question,
-            limit: 50,
-          }),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
+          body: JSON.stringify({ mongo_uri: source.connectionString, db_name: source.dbName || 'test', collections: source.connectedTables, question, limit: 50 }),
         });
       } else {
         const pg_uri = source.id === 'demo' ? NEON : source.connectionString;
         res = await fetch(`${API}/swarm/pg-query`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok()}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
           body: JSON.stringify({ pg_uri, question, limit: 50 }),
         });
       }
-
       try { data = await res.json(); } catch { throw new Error(`Server error (${res.status})`); }
       if (!res.ok) throw new Error(data?.detail || `Failed (${res.status})`);
       const elapsed = Date.now() - t0;
@@ -483,8 +468,7 @@ function Level3({ question, trigger, onResult, source }) {
       const summary = typeof data.summary === 'string' ? data.summary
         : (data.summary?.text || data.summary?.answer || data.summary?.summary || '');
       timers.current.push(setTimeout(() => {
-        setR({ sql: firstOk.sql || '', data: firstOk.data || [], columns: firstOk.columns || [],
-               agentsRun: data.agents_run ?? SWARM_AGENTS.length, summary });
+        setR({ sql: firstOk.sql || '', data: firstOk.data || [], columns: firstOk.columns || [], agentsRun: data.agents_run ?? SWARM_AGENTS.length, summary });
         setMs(elapsed); setS('done');
         onResult?.({ sql: firstOk.sql, data: firstOk.data, timing: elapsed, agents: data.agents_run });
       }, SWARM_AGENTS.length * 140 + 200));
@@ -495,159 +479,132 @@ function Level3({ question, trigger, onResult, source }) {
     }
   }
 
-  const anyAgent = Object.keys(ags).length > 0;
+  const color = '#059669';
+  const anyAgents = Object.keys(ags).length > 0;
 
   return (
-    <div className="aw-card" style={{ borderTop: `3px solid ${L3_COLOR}` }}>
-      <div className="aw-card-head">
-        <div className="aw-level-badge" style={{ background: `${L3_COLOR}12`, color: L3_COLOR, borderColor: `${L3_COLOR}25` }}>L3</div>
-        <div className="aw-card-titles">
-          <div className="aw-card-title">Swarm of Agents</div>
-          <div className="aw-card-sub">Four specialised agents run simultaneously, then combine results</div>
-        </div>
-        <StatusDot status={status} />
-      </div>
+    <div>
+      <LevelHeader
+        color={color}
+        title="Swarm of Agents — 4 specialists running in parallel"
+        sub="Four specialised agents run simultaneously. A coordinator combines their outputs into one coherent answer — faster and more accurate than any single agent."
+        steps={['Schema Reader', 'SQL Generator', 'Safety Validator', 'Insight Synthesiser', '→ Combined answer']}
+      />
 
-      <div className="aw-explain">
-        <SLabel>What Happens</SLabel>
-        <p className="aw-explain-text">
-          Instead of one agent doing everything, four specialised agents run in parallel. One reads
-          the database schema, one generates and validates the SQL, one checks query safety, and one
-          interprets the results. A coordinator then combines their outputs into a single coherent
-          answer. This is faster and more accurate than any single agent for complex questions.
-        </p>
-        <L3Pipeline />
-      </div>
+      {status === 'idle' && <div className="cqp-welcome" style={{ padding: '40px 0' }}><Zap size={22} color={color} /><div className="cqp-welcome-title" style={{ fontSize: '1rem' }}>Press Run to execute this agent</div></div>}
 
-      <Rule />
-      <SLabel>Agent activity</SLabel>
-
-      {status === 'idle' && <p className="aw-idle">Press <strong>Run All</strong> to execute.</p>}
-
-      {anyAgent && (
-        <div className="aw-agents-list">
+      {anyAgents && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
           {SWARM_AGENTS.map(a => {
             const st = ags[a.id] || 'waiting';
             return (
-              <div key={a.id} className={`aw-agent-row aw-ag-${st}`}>
+              <div key={a.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 8,
+                background: st === 'done' ? `${color}06` : st === 'error' ? '#fef2f2' : '#fafafa',
+                border: `1px solid ${st === 'done' ? `${color}20` : st === 'error' ? '#fecaca' : '#e5e7eb'}`,
+                position: 'relative', overflow: 'hidden',
+              }}>
                 <StatusDot status={st} />
-                <div className="aw-agent-info">
-                  <div className="aw-agent-name">{a.label}</div>
-                  <div className="aw-agent-desc">{a.desc}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#111827' }}>{a.label}</div>
+                  <div style={{ fontSize: 11, color: '#6b7280' }}>{a.desc}</div>
                 </div>
-                <span className={`aw-ag-status-label aw-ag-lbl-${st}`}>
-                  {st === 'waiting' ? 'Queued' : st === 'running' ? 'Running' : st === 'done' ? 'Complete' : 'Error'}
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                  background: st === 'done' ? `${color}15` : st === 'running' ? '#dbeafe' : st === 'error' ? '#fee2e2' : '#f1f5f9',
+                  color: st === 'done' ? color : st === 'running' ? '#1d4ed8' : st === 'error' ? '#dc2626' : '#9ca3af',
+                }}>
+                  {st === 'waiting' ? 'Queued' : st === 'running' ? 'Running' : st === 'done' ? 'Done' : 'Error'}
                 </span>
-                {st === 'running' && <div className="aw-ag-bar" style={{ '--c': L3_COLOR }} />}
+                {st === 'running' && (
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: `linear-gradient(90deg,transparent,${color},transparent)`, animation: 'hw-bar 1.2s ease-in-out infinite' }} />
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
-      {error && <div className="aw-error" style={{ margin: '0 0 12px' }}><div className="aw-error-head">Swarm failed</div><div className="aw-error-body">{error}</div></div>}
+      {status === 'error' && <div className="hw-error">{error}</div>}
 
       {result && (
-        <div className="aw-exec aw-fadein">
-          <div className="aw-exec-row">
-            <Chip label={`${result.agentsRun} agents completed`} color={L3_COLOR} />
-            <TimingBadge ms={ms} />
+        <div>
+          <div className="hw-meta">
+            <span className="hw-badge" style={{ background: `${color}12`, color, borderColor: `${color}25` }}>
+              {result.agentsRun} agents
+            </span>
+            {ms && <span className="hw-time">{ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(1)}s`}</span>}
           </div>
-          <CodeBlock sql={result.sql} />
+          <SqlBlock sql={result.sql} />
+          <ResultChart data={result.data} color={color} />
           <DataTable data={result.data} columns={result.columns} />
-          {result.summary ? (
-            <div className="aw-insight" style={{ borderColor: `${L3_COLOR}25`, background: `${L3_COLOR}06` }}>
-              <div className="aw-insight-label" style={{ color: L3_COLOR }}>AI-generated insight</div>
-              <div className="aw-insight-text">{String(result.summary)}</div>
+          {result.summary && (
+            <div style={{ marginTop: 12, background: `${color}06`, border: `1px solid ${color}20`, borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>AI Insight</div>
+              <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.7 }}>{String(result.summary)}</div>
             </div>
-          ) : null}
+          )}
         </div>
       )}
-
-      <div className="aw-footer" style={{ borderTop: `1px solid ${L3_COLOR}15`, background: `${L3_COLOR}06` }}>
-        <strong>Characteristic:</strong> Highest accuracy and richest output. Each agent is an expert
-        in its domain — parallel execution minimises total time.
-      </div>
     </div>
   );
 }
 
-// ── Comparison table ──────────────────────────────────────────────────────
+// ── Comparison tab ─────────────────────────────────────────────────────────
 
-function ComparisonTable({ l1, l2, l3 }) {
-  if (!l1 && !l2 && !l3) return null;
-  const fmt = v => v?.timing ? (v.timing < 1000 ? `${v.timing} ms` : `${(v.timing / 1000).toFixed(1)} s`) : '—';
+function CompareTab({ l1, l2, l3 }) {
+  if (!l1 && !l2 && !l3) return (
+    <div className="cqp-welcome" style={{ padding: '60px 0' }}>
+      <Zap size={24} color="#374151" />
+      <div className="cqp-welcome-title" style={{ fontSize: '1rem' }}>Run all three agents to compare</div>
+      <div className="cqp-welcome-sub">Switch to L1, L2, L3 tabs and press Run on each, then come back here</div>
+    </div>
+  );
+  const fmt = v => v?.timing ? (v.timing < 1000 ? `${v.timing}ms` : `${(v.timing/1000).toFixed(1)}s`) : '—';
   const rows = [
-    { label: 'Agents used',               l1: '1',            l2: '1',         l3: '4' },
-    { label: 'Reads its own errors',      l1: 'No',           l2: 'Yes',       l3: 'Yes' },
-    { label: 'Parallel execution',        l1: 'No',           l2: 'No',        l3: 'Yes' },
-    { label: 'Maximum query attempts',    l1: '1',            l2: 'Up to 3',   l3: 'Unlimited' },
-    { label: 'Time for this question',    l1: fmt(l1),        l2: fmt(l2),     l3: fmt(l3) },
-    { label: 'Provides AI interpretation',l1: 'No',           l2: 'No',        l3: 'Yes' },
-    { label: 'Best suited for',           l1: 'Simple lookups',l2:'Queries that may fail once',l3:'Complex analytical questions' },
+    { label: 'Agents used',         l1: '1',              l2: '1',          l3: '4' },
+    { label: 'Reads own errors',    l1: 'No',             l2: 'Yes',        l3: 'Yes' },
+    { label: 'Parallel execution',  l1: 'No',             l2: 'No',         l3: 'Yes' },
+    { label: 'Max attempts',        l1: '1',              l2: 'Up to 3',    l3: 'Unlimited' },
+    { label: 'Response time',       l1: fmt(l1),          l2: fmt(l2),      l3: fmt(l3) },
+    { label: 'AI interpretation',   l1: 'No',             l2: 'No',         l3: 'Yes' },
+    { label: 'Best suited for',     l1: 'Simple lookups', l2: 'Might fail', l3: 'Complex analysis' },
   ];
   return (
-    <div className="aw-compare">
-      <div className="aw-compare-head">
-        <div className="aw-compare-title">Side-by-side comparison</div>
-        <div className="aw-compare-sub">Based on results from the run above</div>
-      </div>
-      <div className="aw-compare-scroll">
-        <table className="aw-compare-table">
-          <thead>
-            <tr>
-              <th className="aw-cth-feat">Feature</th>
-              <th className="aw-cth" style={{ borderTop: `3px solid ${L1_COLOR}` }}>
-                <span className="aw-cbadge" style={{ background: `${L1_COLOR}15`, color: L1_COLOR }}>L1</span>
-                Single Agent
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', padding: '10px 14px', background: '#f9fafb', borderBottom: '2px solid #e5e7eb', color: '#374151', fontWeight: 700 }}>
+              Feature
+            </th>
+            {[['L1', 'Single Agent', '#2563eb'], ['L2', 'ReAct Agent', '#7c3aed'], ['L3', 'Swarm', '#059669']].map(([badge, name, color]) => (
+              <th key={badge} style={{ textAlign: 'center', padding: '10px 14px', background: '#f9fafb', borderBottom: `3px solid ${color}`, color: '#374151', fontWeight: 700 }}>
+                <span style={{ display: 'inline-block', background: `${color}15`, color, borderRadius: 4, padding: '1px 6px', fontSize: 11, marginBottom: 2 }}>{badge}</span>
+                <br />{name}
               </th>
-              <th className="aw-cth" style={{ borderTop: `3px solid ${L2_COLOR}` }}>
-                <span className="aw-cbadge" style={{ background: `${L2_COLOR}15`, color: L2_COLOR }}>L2</span>
-                ReAct Agent
-              </th>
-              <th className="aw-cth" style={{ borderTop: `3px solid ${L3_COLOR}` }}>
-                <span className="aw-cbadge" style={{ background: `${L3_COLOR}15`, color: L3_COLOR }}>L3</span>
-                Swarm Agent
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className={i % 2 ? 'aw-row-alt' : ''}>
-                <td className="aw-cfeat">{r.label}</td>
-                <td className="aw-cval">{r.l1}</td>
-                <td className="aw-cval">{r.l2}</td>
-                <td className="aw-cval">{r.l3}</td>
-              </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ background: i % 2 ? '#fafafa' : '#fff' }}>
+              <td style={{ padding: '9px 14px', fontWeight: 600, color: '#374151', borderBottom: '1px solid #f3f4f6' }}>{r.label}</td>
+              {[r.l1, r.l2, r.l3].map((v, j) => (
+                <td key={j} style={{ padding: '9px 14px', textAlign: 'center', color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>{v}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-// ── DataSourceSelector ────────────────────────────────────────────────────
-
-function DataSourceSelector({ selected, onSelect }) {
-  return (
-    <div className="aw-source-grid">
-      {DATA_SOURCES.map(ds => (
-        <div
-          key={ds.id}
-          className={`aw-source-tile${selected.id === ds.id ? ' active' : ''}`}
-          style={selected.id === ds.id ? { borderColor: ds.color, boxShadow: `0 0 0 3px ${ds.color}22` } : {}}
-          onClick={() => onSelect(ds)}
-        >
-          <div className="aw-source-tile-label" style={{ color: ds.color }}>{ds.label}</div>
-          <div className="aw-source-tile-desc">{ds.description}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── CSV Parser ────────────────────────────────────────────────────────────
+// ── CSV parser ─────────────────────────────────────────────────────────────
 
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -662,47 +619,35 @@ function parseCSV(text) {
   return { columns: headers, rows };
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────
+// ── Main page ──────────────────────────────────────────────────────────────
 
 export default function HelloWorldPage() {
-  const [question, setQ] = useState(DEF_Q);
-  const [trigger,  setT] = useState(0);
+  const [question, setQ]  = useState(DEF_Q);
+  const [trigger,  setT]  = useState(0);
+  const [tab,      setTab] = useState('l1');
   const [l1, setL1] = useState(null);
   const [l2, setL2] = useState(null);
   const [l3, setL3] = useState(null);
-  const [tab, setTab]   = useState('l1');
-  const [suggestions, setSuggestions] = useState(DEFAULT_SUGGESTIONS);
 
-  const [allConnections, setAllConnections] = useState([]);
+  const [allConns,       setAllConns]       = useState([]);
   const [selectedConnId, setSelectedConnId] = useState('');
+  const [connStatus,     setConnStatus]     = useState('idle');
+  const [connMsg,        setConnMsg]        = useState('');
+  const [csvInfo,        setCsvInfo]        = useState(null);
+  const [suggestions,    setSuggestions]    = useState(SUGGESTIONS);
 
   const [source, setSource] = useState({
-    id: 'demo',
-    connectionString: '',
-    tables: {},
-    connectedTables: [],
-    dbName: '',
-    collection: '',
-    connectedSchema: {},
+    id: 'demo', connectionString: '', tables: {}, connectedTables: [], dbName: '',
   });
-  const [connStatus, setConnStatus] = useState('idle'); // idle|loading|connected|error
-  const [connMsg,    setConnMsg]    = useState('');
-  const [csvInfo,    setCsvInfo]    = useState(null);   // {columns, rowCount}
 
-  const sourceInfo = DATA_SOURCES.find(d => d.id === source.id) || DATA_SOURCES[0];
+  const textareaRef = useRef(null);
+  const sourceInfo  = DATA_SOURCES.find(d => d.id === source.id) || DATA_SOURCES[0];
+  const dbTypeKey   = DB_TYPE_MAP[source.id];
+  const filteredConns = dbTypeKey ? allConns.filter(c => c.db_type === dbTypeKey) : [];
 
-  // Load all saved connections once on mount
   useEffect(() => {
-    authAPI.connections()
-      .then(r => setAllConnections(r.data || []))
-      .catch(() => {});
+    authAPI.connections().then(r => setAllConns(r.data || [])).catch(() => {});
   }, []);
-
-  // Connections available for the currently selected DB type
-  const dbTypeKey = DB_TYPE_MAP[source.id];
-  const filteredConns = dbTypeKey
-    ? allConnections.filter(c => c.db_type === dbTypeKey)
-    : [];
 
   function selectSource(ds) {
     setSource(s => ({ ...s, id: ds.id, connectionString: '', connectedTables: [], tables: {} }));
@@ -710,25 +655,18 @@ export default function HelloWorldPage() {
     setConnStatus('idle');
     setConnMsg('');
     setCsvInfo(null);
-    if (ds.id === 'demo') setSuggestions(DEFAULT_SUGGESTIONS);
+    if (ds.id === 'demo') setSuggestions(SUGGESTIONS);
   }
 
   async function handleConnSelect(connId) {
     setSelectedConnId(connId);
-    if (!connId) {
-      setSource(s => ({ ...s, connectionString: '', connectedTables: [] }));
-      setConnStatus('idle');
-      return;
-    }
+    if (!connId) { setSource(s => ({ ...s, connectionString: '', connectedTables: [] })); setConnStatus('idle'); return; }
     setConnStatus('loading');
-    setConnMsg('');
     try {
       const uriRes = await authAPI.getUri(connId);
       const uri = uriRes.data?.uri;
       if (!uri) throw new Error('Could not retrieve connection URI');
       setSource(s => ({ ...s, connectionString: uri }));
-
-      // Auto-connect to list tables
       const res = await fetch(`${API}/plugin/connect`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connection_string: uri, db_type: source.id }),
@@ -739,19 +677,16 @@ export default function HelloWorldPage() {
       setSource(s => ({ ...s, connectedTables: tables }));
       setConnStatus('connected');
       fetchSuggestions(tables, source.id);
-    } catch (e) {
-      setConnStatus('error');
-      setConnMsg(e.message);
-    }
+    } catch (e) { setConnStatus('error'); setConnMsg(e.message); }
   }
 
   async function fetchSuggestions(tables, dbType) {
     try {
-      const tablesSchema = {};
-      tables.forEach(t => { tablesSchema[t] = []; });
+      const schema = {};
+      tables.forEach(t => { schema[t] = []; });
       const res = await fetch(`${API}/plugin/suggest-questions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tables_schema: tablesSchema, db_type: dbType }),
+        body: JSON.stringify({ tables_schema: schema, db_type: dbType }),
       });
       const data = await res.json();
       if (data.questions?.length) setSuggestions(data.questions);
@@ -767,182 +702,175 @@ export default function HelloWorldPage() {
       const tableName = file.name.replace(/\.csv$/i, '').replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'uploaded';
       setSource(s => ({ ...s, tables: { [tableName]: rows }, connectedTables: [tableName] }));
       setCsvInfo({ columns, rowCount: rows.length, tableName });
-      setSuggestions(DEFAULT_SUGGESTIONS);
+      setSuggestions(SUGGESTIONS);
     };
     reader.readAsText(file);
   }
 
   function runAll() { setL1(null); setL2(null); setL3(null); setT(t => t + 1); }
 
+  const conn      = allConns.find(c => String(c.id) === String(selectedConnId));
+  const connLabel = source.id === 'demo' ? 'Demo Database'
+    : conn?.name || conn?.dbname || (csvInfo?.tableName ? csvInfo.tableName : 'No connection');
+
   const l1Status = l1 ? (l1.error ? 'error' : 'done') : (trigger > 0 ? 'running' : 'idle');
   const l2Status = l2 ? (l2.error ? 'error' : 'done') : (trigger > 0 ? 'running' : 'idle');
   const l3Status = l3 ? (l3.error ? 'error' : 'done') : (trigger > 0 ? 'running' : 'idle');
 
+  const tabColors = { l1: '#2563eb', l2: '#7c3aed', l3: '#059669', compare: '#374151' };
+  const currentColor = tabColors[tab] || '#374151';
+
+  const LEVEL_TABS = [
+    { id: 'l1',      label: 'L1 · Single Agent',  color: '#2563eb', status: l1Status },
+    { id: 'l2',      label: 'L2 · ReAct Agent',   color: '#7c3aed', status: l2Status },
+    { id: 'l3',      label: 'L3 · Swarm Agents',  color: '#059669', status: l3Status },
+    { id: 'compare', label: 'Compare All',         color: '#374151', status: 'idle' },
+  ];
+
   return (
-    <div className="aw-page">
+    <div className="chat-query-page fade-in">
 
-      {/* Hero */}
-      <div className="aw-hero">
-        <div className="aw-hero-body">
-          <div className="aw-hero-eyebrow">AI Agent Architecture · Live Demo</div>
-          <h1 className="aw-hero-title">Three Levels of AI Intelligence</h1>
-          <p className="aw-hero-desc">
-            The same question is answered by three increasingly sophisticated AI agent designs.
-            Watch how each approach handles the problem differently — from a single direct query
-            to a self-correcting loop to a fully parallel team of specialists.
-          </p>
-        </div>
-        <div className="aw-hero-badges">
-          <div className="aw-hero-badge" style={{ borderColor: `${L1_COLOR}40`, color: L1_COLOR }}>
-            <span className="aw-hero-badge-num">L1</span>
-            <span>Single Agent</span>
-          </div>
-          <div className="aw-hero-badge" style={{ borderColor: `${L2_COLOR}40`, color: L2_COLOR }}>
-            <span className="aw-hero-badge-num">L2</span>
-            <span>ReAct Loop</span>
-          </div>
-          <div className="aw-hero-badge" style={{ borderColor: `${L3_COLOR}40`, color: L3_COLOR }}>
-            <span className="aw-hero-badge-num">L3</span>
-            <span>Swarm</span>
+      {/* ── Left sidebar ── */}
+      <div className="cqp-left">
+
+        {/* Agent Level */}
+        <div className="cqp-section">
+          <div className="cqp-section-label">Agent Level</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {LEVEL_TABS.map(lv => (
+              <button key={lv.id} onClick={() => setTab(lv.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 12px', borderRadius: 8, border: '1.5px solid',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.15s', textAlign: 'left',
+                borderColor: tab === lv.id ? lv.color : '#e5e7eb',
+                background:  tab === lv.id ? `${lv.color}12` : '#fff',
+                color:       tab === lv.id ? lv.color : '#6b7280',
+              }}>
+                {lv.id !== 'compare' && <StatusDot status={lv.status} />}
+                {lv.label}
+              </button>
+            ))}
           </div>
         </div>
-      </div>
 
-      {/* Data source selector */}
-      <DataSourceSelector selected={sourceInfo} onSelect={selectSource} />
-
-      {/* Connection panel — saved connections dropdown */}
-      {sourceInfo.needsConn && (
-        <div className="aw-conn-panel">
-          <div className="aw-question-label">{sourceInfo.label} Connection</div>
-          {filteredConns.length === 0 ? (
-            <div className="aw-conn-empty">
-              No {sourceInfo.label} connections saved.{' '}
-              <a href="/connections" className="aw-conn-link">Add one in Connections</a>.
-            </div>
-          ) : (
-            <div className="aw-conn-row">
-              <select
-                className="aw-conn-select"
-                value={selectedConnId}
-                onChange={e => handleConnSelect(e.target.value)}
-                disabled={connStatus === 'loading'}
-              >
-                <option value="">— Select a connection —</option>
-                {filteredConns.map(c => (
-                  <option key={c.id} value={String(c.id)}>{c.name || c.dbname}</option>
-                ))}
-              </select>
-              {connStatus === 'loading' && (
-                <span className="aw-conn-spinner" />
-              )}
-            </div>
-          )}
-          {connStatus === 'connected' && (
-            <div className="aw-conn-success">
-              Connected — {source.connectedTables.length} tables found
-              <div className="aw-conn-chips">
-                {source.connectedTables.map(t => (
-                  <span key={t} className="aw-conn-chip">{t}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {connStatus === 'error' && (
-            <div className="aw-error" style={{ marginTop: 8 }}>
-              <div className="aw-error-body">{connMsg}</div>
-            </div>
-          )}
+        {/* Data Source */}
+        <div className="cqp-section">
+          <div className="cqp-section-label">Data Source</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {DATA_SOURCES.map(ds => (
+              <button key={ds.id} onClick={() => selectSource(ds)} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 10px', borderRadius: 7, border: '1.5px solid',
+                fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.15s', textAlign: 'left',
+                borderColor: source.id === ds.id ? ds.color : '#e5e7eb',
+                background:  source.id === ds.id ? `${ds.color}12` : '#fff',
+                color:       source.id === ds.id ? ds.color : '#6b7280',
+              }}>
+                {ds.label}
+              </button>
+            ))}
+          </div>
         </div>
-      )}
 
-      {/* CSV upload panel */}
-      {source.id === 'uploaded' && (
-        <div className="aw-conn-panel">
-          <div className="aw-question-label">Upload CSV File</div>
-          <label className="aw-upload-zone">
-            <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFileChange} />
-            {csvInfo ? (
-              <div>
-                <div style={{ fontWeight: 700, color: '#6366f1', marginBottom: 4 }}>{csvInfo.tableName}</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-                  {csvInfo.columns.length} columns, {csvInfo.rowCount} rows
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: 4 }}>
-                  {csvInfo.columns.slice(0, 5).join(', ')}{csvInfo.columns.length > 5 ? '…' : ''}
-                </div>
+        {/* Connection dropdown */}
+        {sourceInfo.needsConn && (
+          <div className="cqp-section">
+            <div className="cqp-section-label">Connection</div>
+            {filteredConns.length === 0 ? (
+              <div className="cqp-empty-note">
+                No {sourceInfo.label} connections.{' '}
+                <a href="/connections" style={{ color: 'var(--accent)' }}>Add one</a>
               </div>
             ) : (
-              <div>
-                <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Click to upload a CSV file</div>
-                <div style={{ fontSize: '0.75rem', color: '#cbd5e1', marginTop: 4 }}>or drag and drop</div>
-              </div>
+              <>
+                <select
+                  className="cqp-select"
+                  value={selectedConnId}
+                  onChange={e => handleConnSelect(e.target.value)}
+                  disabled={connStatus === 'loading'}
+                >
+                  <option value="">— Select —</option>
+                  {filteredConns.map(c => (
+                    <option key={c.id} value={String(c.id)}>{c.name || c.dbname}</option>
+                  ))}
+                </select>
+                {connStatus === 'loading'   && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Connecting…</div>}
+                {connStatus === 'connected' && <div style={{ fontSize: 11, color: '#059669', marginTop: 4, fontWeight: 600 }}>Connected · {source.connectedTables.length} tables</div>}
+                {connStatus === 'error'     && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>{connMsg}</div>}
+              </>
             )}
-          </label>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Question input */}
-      <div className="aw-question-bar">
-        <div className="aw-question-label">Question sent to all three agents</div>
-        <div className="aw-question-row">
-          <input
-            className="aw-question-input"
-            value={question}
-            onChange={e => setQ(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && runAll()}
-            placeholder="Type a question about the database…"
-          />
-          <button className="aw-run-btn" onClick={runAll}>Run All</button>
-        </div>
-        {/* Suggestion chips */}
-        <div className="aw-suggestion-chips">
-          {suggestions.map((s, i) => (
-            <button key={i} className="aw-suggestion-chip" onClick={() => setQ(s)}>{s}</button>
+        {/* CSV upload */}
+        {source.id === 'uploaded' && (
+          <div className="cqp-section">
+            <div className="cqp-section-label">CSV File</div>
+            <label style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1.5px dashed #cbd5e1', borderRadius: 8, padding: '16px 12px',
+              cursor: 'pointer', textAlign: 'center', minHeight: 60, background: '#fafafa',
+            }}>
+              <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFileChange} />
+              {csvInfo ? (
+                <div style={{ fontSize: 11 }}>
+                  <div style={{ fontWeight: 700, color: '#6366f1' }}>{csvInfo.tableName}</div>
+                  <div style={{ color: '#64748b', marginTop: 2 }}>{csvInfo.rowCount} rows · {csvInfo.columns.length} cols</div>
+                </div>
+              ) : <div style={{ fontSize: 11, color: '#94a3b8' }}>Click to upload CSV</div>}
+            </label>
+          </div>
+        )}
+
+        {/* Suggestions */}
+        <div className="cqp-section cqp-suggestions">
+          <div className="cqp-section-label"><Sparkles size={11} /> Suggestions</div>
+          {suggestions.map(s => (
+            <button key={s} className="cqp-suggestion"
+              onClick={() => { setQ(s); textareaRef.current?.focus(); }}>
+              {s}
+            </button>
           ))}
         </div>
-        <div className="aw-question-hint">
-          {source.id === 'demo'
-            ? 'Demo database · Tables: employees, departments, orders, sales_performance'
-            : source.id === 'uploaded' && csvInfo
-            ? `Uploaded: ${csvInfo.tableName} · ${csvInfo.rowCount} rows`
-            : source.connectedTables.length
-            ? `Connected to ${sourceInfo.label} · ${source.connectedTables.length} tables`
-            : `Select and connect a ${sourceInfo.label} database to run queries`
-          }
+      </div>
+
+      {/* ── Right panel ── */}
+      <div className="cqp-right">
+        <div className="cqp-chat-header">
+          <Zap size={15} color={currentColor} />
+          <span>Agent Demos</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: `${currentColor}15`, color: currentColor }}>
+              {tab === 'l1' ? 'Single Agent' : tab === 'l2' ? 'ReAct Agent' : tab === 'l3' ? 'Swarm' : 'Comparison'}
+            </span>
+            <Badge color="blue">{connLabel}</Badge>
+          </div>
+        </div>
+
+        <div className="cqp-messages" style={{ padding: '20px 24px' }}>
+          {tab === 'l1' && <Level1 question={question} trigger={trigger} source={source} onResult={setL1} />}
+          {tab === 'l2' && <Level2 question={question} trigger={trigger} source={source} onResult={setL2} />}
+          {tab === 'l3' && <Level3 question={question} trigger={trigger} source={source} onResult={setL3} />}
+          {tab === 'compare' && <CompareTab l1={l1} l2={l2} l3={l3} />}
+        </div>
+
+        <div className="cqp-input-bar">
+          <textarea
+            ref={textareaRef}
+            className="cqp-textarea"
+            value={question}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runAll(); } }}
+            placeholder="Ask a question about your data… (Enter to run all agents)"
+            rows={1}
+          />
+          <button className="cqp-send-btn" onClick={runAll} disabled={!question.trim()}>
+            <Zap size={15} />
+          </button>
         </div>
       </div>
-
-      {/* Tab navigation */}
-      <div className="aw-tab-nav">
-        {[
-          { id: 'l1', label: 'L1 · Single Agent',   status: l1Status },
-          { id: 'l2', label: 'L2 · ReAct Loop',      status: l2Status },
-          { id: 'l3', label: 'L3 · Swarm',           status: l3Status },
-        ].map(t => (
-          <button
-            key={t.id}
-            className={`aw-tab-btn${tab === t.id ? ' active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            <StatusDot status={t.status} />
-            {t.label}
-          </button>
-        ))}
-        <button className="aw-run-btn" style={{ marginLeft: 'auto', padding: '7px 18px', fontSize: '0.8rem' }} onClick={runAll}>
-          Run All 3
-        </button>
-      </div>
-
-      {/* Active tab panel — full-width card */}
-      <div style={{ marginBottom: 20 }}>
-        {tab === 'l1' && <Level1 question={question} trigger={trigger} onResult={setL1} source={source} />}
-        {tab === 'l2' && <Level2 question={question} trigger={trigger} onResult={setL2} source={source} />}
-        {tab === 'l3' && <Level3 question={question} trigger={trigger} onResult={setL3} source={source} />}
-      </div>
-
-      {/* Comparison */}
-      {(l1 || l2 || l3) && <ComparisonTable l1={l1} l2={l2} l3={l3} />}
     </div>
   );
 }
