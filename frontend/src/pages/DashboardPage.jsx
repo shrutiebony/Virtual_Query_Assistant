@@ -3,19 +3,66 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';
 import {
-  Database, Leaf, FolderOpen,
-  ArrowRight, Zap, BarChart2,
-  MessageSquare, Sparkles, Shield, Link2, Users,
+  Database, Leaf, FolderOpen, Link2, ArrowRight,
+  Zap, BarChart2, MessageSquare, Sparkles, Shield, Plug,
 } from 'lucide-react';
 import './DashboardPage.css';
 
 const ACTIONS = [
-  { label: 'PostgreSQL',   desc: 'Query with natural language',     icon: Database,   color: '#3b82f6', bg: '#eff6ff', to: '/query/postgres' },
-  { label: 'MongoDB',      desc: 'Query collections with AI',       icon: Leaf,        color: '#10b981', bg: '#f0fdf4', to: '/query/mongo'    },
-  { label: 'MySQL',        desc: 'Natural language to MySQL',        icon: Database,   color: '#f59e0b', bg: '#fffbeb', to: '/mysql'          },
-  { label: 'Datasets',     desc: 'Upload CSV and ask questions',     icon: FolderOpen, color: '#8b5cf6', bg: '#f5f3ff', to: '/datasets'       },
-  { label: 'Swarm Agents', desc: 'Parallel AI agents',              icon: Zap,         color: '#6366f1', bg: '#eef2ff', to: '/swarm'          },
-  { label: 'Benchmark',    desc: 'View accuracy results',            icon: BarChart2,  color: '#10b981', bg: '#f0fdf4', to: '/benchmark'      },
+  {
+    label: 'PostgreSQL',
+    desc:  'Query your relational database in plain English',
+    icon: Database, color: '#2563eb', grad: 'linear-gradient(135deg,#dbeafe,#eff6ff)',
+    to: '/query/postgres',
+  },
+  {
+    label: 'MongoDB',
+    desc:  'Ask questions across collections with AI',
+    icon: Leaf, color: '#059669', grad: 'linear-gradient(135deg,#d1fae5,#f0fdf4)',
+    to: '/query/mongo',
+  },
+  {
+    label: 'MySQL',
+    desc:  'Natural language queries on MySQL databases',
+    icon: Database, color: '#d97706', grad: 'linear-gradient(135deg,#fde68a,#fffbeb)',
+    to: '/mysql',
+  },
+  {
+    label: 'Datasets',
+    desc:  'Upload CSV / Excel and ask questions instantly',
+    icon: FolderOpen, color: '#7c3aed', grad: 'linear-gradient(135deg,#ddd6fe,#f5f3ff)',
+    to: '/datasets',
+  },
+  {
+    label: 'Swarm Agents',
+    desc:  'Run 4 specialised AI agents in parallel',
+    icon: Zap, color: '#4f46e5', grad: 'linear-gradient(135deg,#c7d2fe,#eef2ff)',
+    to: '/swarm',
+  },
+  {
+    label: 'Agent Demos',
+    desc:  'See L1 Single, L2 ReAct and L3 Swarm in action',
+    icon: Sparkles, color: '#0891b2', grad: 'linear-gradient(135deg,#bae6fd,#f0f9ff)',
+    to: '/hello-world',
+  },
+  {
+    label: 'Connections',
+    desc:  'Add and manage your saved database connections',
+    icon: Link2, color: '#be185d', grad: 'linear-gradient(135deg,#fce7f3,#fdf2f8)',
+    to: '/connections',
+  },
+  {
+    label: 'Claude Plugin',
+    desc:  'Query any database via Claude AI assistant',
+    icon: Plug, color: '#92400e', grad: 'linear-gradient(135deg,#fde68a,#fffbeb)',
+    to: '/plugin',
+  },
+  {
+    label: 'Benchmark',
+    desc:  'View detailed accuracy results by difficulty',
+    icon: BarChart2, color: '#047857', grad: 'linear-gradient(135deg,#a7f3d0,#ecfdf5)',
+    to: '/benchmark',
+  },
 ];
 
 const HOW = [
@@ -41,35 +88,36 @@ export default function DashboardPage() {
     authAPI.connections().then(r => setConnections(r.data || [])).catch(() => {});
   }, []);
 
-  const pg    = connections.filter(c => c.db_type === 'postgresql');
-  const mongo = connections.filter(c => c.db_type === 'mongodb');
-  const mysql = connections.filter(c => c.db_type === 'mysql');
-  const name  = user?.displayName || user?.full_name || user?.email?.split('@')[0] || 'there';
-
-  const STATS = [
-    { label: 'PostgreSQL DBs',    value: pg.length,          color: '#3b82f6', icon: Database },
-    { label: 'MongoDB DBs',       value: mongo.length,       color: '#10b981', icon: Leaf     },
-    { label: 'MySQL DBs',         value: mysql.length,       color: '#f59e0b', icon: Database },
-    { label: 'Total Connections', value: connections.length, color: '#8b5cf6', icon: Link2    },
-  ];
+  const name = user?.displayName || user?.full_name || user?.email?.split('@')[0] || 'there';
 
   return (
     <div className="dash">
 
-      {/* ── Hero card ── */}
+      {/* ── Hero ── */}
       <div className="dash-hero-card dash-fade-up">
-        <div>
+        <div className="dash-hero-left">
           <div className="dash-greeting">{greeting()}</div>
           <h1 className="dash-hero-title">{name} 👋</h1>
-          <p className="dash-hero-sub">Here's what's happening with your databases today</p>
+          <p className="dash-hero-sub">
+            Your AI-powered database assistant — ask anything, get answers instantly.
+          </p>
+          <div className="dash-hero-chips">
+            <span className="dash-chip dash-chip-blue">PostgreSQL</span>
+            <span className="dash-chip dash-chip-green">MongoDB</span>
+            <span className="dash-chip dash-chip-amber">MySQL</span>
+            <span className="dash-chip dash-chip-purple">Supabase</span>
+          </div>
         </div>
         <div className="dash-hero-right">
           <div className="dash-hero-date">
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </div>
           <button className="dash-quick-btn" onClick={() => navigate('/query/postgres')}>
-            Quick Query
+            Quick Query →
           </button>
+          <div className="dash-hero-conn-count">
+            {connections.length} connection{connections.length !== 1 ? 's' : ''} saved
+          </div>
         </div>
       </div>
 
@@ -79,43 +127,33 @@ export default function DashboardPage() {
           <div className="dash-banner-icon"><Link2 size={18} /></div>
           <div>
             <div className="dash-banner-title">Connect your first database</div>
-            <div className="dash-banner-sub">Add a PostgreSQL or MongoDB connection to start querying with AI</div>
+            <div className="dash-banner-sub">Add a PostgreSQL, MongoDB, MySQL or Supabase connection to get started</div>
           </div>
           <ArrowRight size={18} className="dash-banner-arrow" />
         </div>
       )}
 
-      {/* ── Stats row ── */}
-      <div className="dash-stats-row dash-fade-up">
-        {STATS.map(({ label, value, color, icon: Icon }) => (
-          <div key={label} className="dash-stat-card" style={{ '--stat-color': color }}>
-            <div className="dash-stat-icon-box" style={{ background: `${color}18`, color }}>
-              <Icon size={18} />
-            </div>
-            <div className="dash-stat-value" style={{ color }}>{value}</div>
-            <div className="dash-stat-label">{label}</div>
-          </div>
-        ))}
-      </div>
-
       {/* ── Quick Actions ── */}
       <section className="dash-section dash-fade-up">
         <h2 className="dash-section-title">Quick actions</h2>
         <div className="dash-actions-grid">
-          {ACTIONS.map(({ label, desc, icon: Icon, color, bg, to }) => (
+          {ACTIONS.map(({ label, desc, icon: Icon, color, grad, to }) => (
             <button
               key={to}
               className="dash-action-card"
+              style={{ '--card-color': color, '--card-grad': grad }}
               onClick={() => navigate(to)}
             >
-              <div className="dash-action-icon-box" style={{ background: bg, color }}>
-                <Icon size={20} />
+              <div className="dash-action-icon-box" style={{ background: grad }}>
+                <Icon size={22} style={{ color }} />
               </div>
               <div className="dash-action-text">
                 <div className="dash-action-label">{label}</div>
                 <div className="dash-action-desc">{desc}</div>
               </div>
-              <ArrowRight size={15} className="dash-action-arrow" />
+              <div className="dash-action-arrow-box">
+                <ArrowRight size={14} />
+              </div>
             </button>
           ))}
         </div>
