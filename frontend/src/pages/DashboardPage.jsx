@@ -99,14 +99,8 @@ export default function DashboardPage() {
           <div className="dash-greeting">{greeting()}</div>
           <h1 className="dash-hero-title">{name} 👋</h1>
           <p className="dash-hero-sub">
-            Your AI-powered database assistant — ask anything, get answers instantly.
+            Your AI-powered database assistant - ask anything, get answers instantly.
           </p>
-          <div className="dash-hero-chips">
-            <span className="dash-chip dash-chip-blue">PostgreSQL</span>
-            <span className="dash-chip dash-chip-green">MongoDB</span>
-            <span className="dash-chip dash-chip-amber">MySQL</span>
-            <span className="dash-chip dash-chip-purple">Supabase</span>
-          </div>
         </div>
         <div className="dash-hero-right">
           <div className="dash-hero-date">
