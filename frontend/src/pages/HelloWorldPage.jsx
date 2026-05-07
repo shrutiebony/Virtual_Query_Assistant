@@ -1,9 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { authAPI } from '../services/api';
 import './HelloWorldPage.css';
 
 const API   = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const NEON  = 'postgresql://neondb_owner:npg_Rn56FbVsmiQI@ep-wandering-art-amtq6t2m-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require';
 const DEF_Q = 'What is the total revenue per employee department?';
+
+const DB_TYPE_MAP = {
+  postgres: 'postgresql',
+  supabase: 'postgresql',
+  mysql:    'mysql',
+  mongodb:  'mongodb',
+};
 
 const L1_COLOR = '#2563eb';
 const L2_COLOR = '#7c3aed';
@@ -665,6 +673,9 @@ export default function HelloWorldPage() {
   const [tab, setTab]   = useState('l1');
   const [suggestions, setSuggestions] = useState(DEFAULT_SUGGESTIONS);
 
+  const [allConnections, setAllConnections] = useState([]);
+  const [selectedConnId, setSelectedConnId] = useState('');
+
   const [source, setSource] = useState({
     id: 'demo',
     connectionString: '',
@@ -674,38 +685,59 @@ export default function HelloWorldPage() {
     collection: '',
     connectedSchema: {},
   });
-  const [connStatus, setConnStatus] = useState('idle'); // idle|connecting|connected|error
+  const [connStatus, setConnStatus] = useState('idle'); // idle|loading|connected|error
   const [connMsg,    setConnMsg]    = useState('');
   const [csvInfo,    setCsvInfo]    = useState(null);   // {columns, rowCount}
 
   const sourceInfo = DATA_SOURCES.find(d => d.id === source.id) || DATA_SOURCES[0];
 
+  // Load all saved connections once on mount
+  useEffect(() => {
+    authAPI.connections()
+      .then(r => setAllConnections(r.data || []))
+      .catch(() => {});
+  }, []);
+
+  // Connections available for the currently selected DB type
+  const dbTypeKey = DB_TYPE_MAP[source.id];
+  const filteredConns = dbTypeKey
+    ? allConnections.filter(c => c.db_type === dbTypeKey)
+    : [];
+
   function selectSource(ds) {
     setSource(s => ({ ...s, id: ds.id, connectionString: '', connectedTables: [], tables: {} }));
+    setSelectedConnId('');
     setConnStatus('idle');
     setConnMsg('');
     setCsvInfo(null);
-    if (ds.id === 'demo') {
-      setSuggestions(DEFAULT_SUGGESTIONS);
-    }
+    if (ds.id === 'demo') setSuggestions(DEFAULT_SUGGESTIONS);
   }
 
-  async function handleConnect() {
-    if (!source.connectionString.trim()) return;
-    setConnStatus('connecting');
+  async function handleConnSelect(connId) {
+    setSelectedConnId(connId);
+    if (!connId) {
+      setSource(s => ({ ...s, connectionString: '', connectedTables: [] }));
+      setConnStatus('idle');
+      return;
+    }
+    setConnStatus('loading');
     setConnMsg('');
     try {
+      const uriRes = await authAPI.getUri(connId);
+      const uri = uriRes.data?.uri;
+      if (!uri) throw new Error('Could not retrieve connection URI');
+      setSource(s => ({ ...s, connectionString: uri }));
+
+      // Auto-connect to list tables
       const res = await fetch(`${API}/plugin/connect`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connection_string: source.connectionString, db_type: source.id }),
+        body: JSON.stringify({ connection_string: uri, db_type: source.id }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.detail || 'Connection failed');
       const tables = data.tables_found || [];
       setSource(s => ({ ...s, connectedTables: tables }));
       setConnStatus('connected');
-      setConnMsg(`Connected - ${tables.length} tables found`);
-      // Fetch suggestions based on schema
       fetchSuggestions(tables, source.id);
     } catch (e) {
       setConnStatus('error');
@@ -779,30 +811,33 @@ export default function HelloWorldPage() {
       {/* Data source selector */}
       <DataSourceSelector selected={sourceInfo} onSelect={selectSource} />
 
-      {/* Connection panel */}
+      {/* Connection panel — saved connections dropdown */}
       {sourceInfo.needsConn && (
         <div className="aw-conn-panel">
-          <div className="aw-question-label">
-            {sourceInfo.label} Connection String
-          </div>
-          <div className="aw-conn-row">
-            <input
-              className="aw-conn-input"
-              type="text"
-              value={source.connectionString}
-              onChange={e => setSource(s => ({ ...s, connectionString: e.target.value }))}
-              placeholder={sourceInfo.placeholder || 'Connection string…'}
-              onKeyDown={e => e.key === 'Enter' && handleConnect()}
-            />
-            <button
-              className="aw-conn-btn"
-              style={{ background: sourceInfo.color }}
-              onClick={handleConnect}
-              disabled={connStatus === 'connecting'}
-            >
-              {connStatus === 'connecting' ? 'Connecting…' : 'Connect'}
-            </button>
-          </div>
+          <div className="aw-question-label">{sourceInfo.label} Connection</div>
+          {filteredConns.length === 0 ? (
+            <div className="aw-conn-empty">
+              No {sourceInfo.label} connections saved.{' '}
+              <a href="/connections" className="aw-conn-link">Add one in Connections</a>.
+            </div>
+          ) : (
+            <div className="aw-conn-row">
+              <select
+                className="aw-conn-select"
+                value={selectedConnId}
+                onChange={e => handleConnSelect(e.target.value)}
+                disabled={connStatus === 'loading'}
+              >
+                <option value="">— Select a connection —</option>
+                {filteredConns.map(c => (
+                  <option key={c.id} value={String(c.id)}>{c.name || c.dbname}</option>
+                ))}
+              </select>
+              {connStatus === 'loading' && (
+                <span className="aw-conn-spinner" />
+              )}
+            </div>
+          )}
           {connStatus === 'connected' && (
             <div className="aw-conn-success">
               Connected — {source.connectedTables.length} tables found
