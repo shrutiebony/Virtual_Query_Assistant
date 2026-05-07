@@ -6,12 +6,10 @@ import ResultsPanel from '../components/ui/ResultsPanel';
 import { Send, Sparkles, CheckSquare, Square, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import './ChatQueryPage.css';
 
-/* Supabase logo mark — minimal SVG, brand green */
 function SupabaseIcon({ size = 15 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M13.976 22.042c-.371.44-1.101.185-1.101-.393V13.5H3.75c-.76 0-1.17-.895-.688-1.47L10.024 3.458c.371-.44 1.101-.185 1.101.393V10.5h9.125c.76 0 1.17.895.688 1.47l-6.962 10.072z"
-        fill="#3ECF8E"/>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M13.976 22.042c-.371.44-1.101.185-1.101-.393V13.5H3.75c-.76 0-1.17-.895-.688-1.47L10.024 3.458c.371-.44 1.101-.185 1.101.393V10.5h9.125c.76 0 1.17.895.688 1.47l-6.962 10.072z" fill="#3ECF8E"/>
     </svg>
   );
 }
@@ -34,28 +32,30 @@ export default function SupabasePage() {
   const [history, setHistory]     = useState([]);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
-  const chatEndRef = useRef(null);
+  const chatEndRef  = useRef(null);
   const textareaRef = useRef(null);
 
+  // Load both supabase and postgresql connections — Supabase IS PostgreSQL
   useEffect(() => {
     authAPI.connections()
       .then(r => {
-        const pg = (r.data || []).filter(c => c.db_type === 'postgresql');
-        setConnections(pg);
-        if (pg.length) setSelectedConn(String(pg[0].id));
+        const conns = (r.data || []).filter(c => c.db_type === 'supabase' || c.db_type === 'postgresql');
+        setConnections(conns);
+        if (conns.length) setSelectedConn(String(conns[0].id));
       }).catch(() => {});
   }, []);
 
   const conn = connections.find(c => String(c.id) === String(selectedConn));
 
+  // Load tables when connection changes
   useEffect(() => {
     if (!conn) return;
     setTables([]); setSelTables([]);
     authAPI.getUri(conn.id).then(r => {
       const uri = r.data?.uri;
       if (!uri) return;
-      pgAPI.listTables({ pg_uri: uri }).then(r2 => {
-        const tbls = r2.data?.tables || Object.keys(r2.data?.schemas?.public || {}) || [];
+      pgAPI.listTables(uri).then(r2 => {
+        const tbls = r2.data?.tables || Object.keys(r2.data?.schemas?.public || {});
         setTables(tbls);
         setSelTables(tbls);
       }).catch(() => {});
@@ -118,24 +118,21 @@ export default function SupabasePage() {
 
   return (
     <div className="chat-query-page fade-in">
+
       {/* ── Left panel ── */}
       <div className="cqp-left">
 
-        {/* Supabase info banner */}
+        {/* Info banner */}
         <div style={{
-          background: 'rgba(62,207,142,.08)',
-          border: '1px solid rgba(62,207,142,.25)',
-          borderRadius: 8,
-          padding: '10px 12px',
-          margin: '10px 10px 0',
-          fontSize: '0.75rem',
-          color: '#064e3b',
-          lineHeight: 1.5,
+          background: 'rgba(62,207,142,.08)', border: '1px solid rgba(62,207,142,.25)',
+          borderRadius: 8, padding: '10px 12px', margin: '10px 10px 0',
+          fontSize: '0.75rem', color: '#064e3b', lineHeight: 1.5,
         }}>
           <div style={{ fontWeight: 700, color: '#059669', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
             <SupabaseIcon size={13} /> Supabase
           </div>
-          Built on PostgreSQL — connect using your Supabase connection string.
+          Built on PostgreSQL. Add a Supabase connection in{' '}
+          <strong>Connections</strong>, then select it below.
           <br />
           <a
             href="https://supabase.com/dashboard/project/_/settings/database"
@@ -143,7 +140,7 @@ export default function SupabasePage() {
             rel="noreferrer"
             style={{ color: '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 5 }}
           >
-            Get connection string <ExternalLink size={11} />
+            Get connection details <ExternalLink size={11} />
           </a>
         </div>
 
@@ -151,22 +148,35 @@ export default function SupabasePage() {
           <div className="cqp-section-label">Connection</div>
           {connections.length === 0 ? (
             <div className="cqp-empty-note">
-              No PostgreSQL connections saved.{' '}
-              <span style={{ color: '#94a3b8' }}>
-                Add one in <strong>Connections</strong> using your Supabase URI.
-              </span>
+              No Supabase connections saved.{' '}
+              <a href="/connections" style={{ color: 'var(--accent)' }}>
+                Add one in Connections
+              </a>{' '}
+              using <strong>Supabase</strong> type.
             </div>
           ) : (
-            <select className="cqp-select" value={selectedConn} onChange={e => setSelectedConn(e.target.value)}>
-              {connections.map(c => <option key={c.id} value={String(c.id)}>{c.name || c.dbname}</option>)}
+            <select
+              className="cqp-select"
+              value={selectedConn}
+              onChange={e => setSelectedConn(e.target.value)}
+            >
+              {connections.map(c => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name || c.dbname}{c.db_type === 'supabase' ? ' (Supabase)' : ' (PG)'}
+                </option>
+              ))}
             </select>
           )}
         </div>
 
+        {/* Table filter */}
         {tables.length > 0 && (
           <div className="cqp-section">
-            <div className="cqp-section-label" style={{cursor:'pointer',display:'flex',justifyContent:'space-between'}}
-              onClick={() => setShowTables(s => !s)}>
+            <div
+              className="cqp-section-label"
+              style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}
+              onClick={() => setShowTables(s => !s)}
+            >
               <span>Tables ({selTables.length}/{tables.length})</span>
               {showTables ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
             </div>
@@ -192,7 +202,11 @@ export default function SupabasePage() {
         <div className="cqp-section cqp-suggestions">
           <div className="cqp-section-label"><Sparkles size={11}/> Suggestions</div>
           {SAMPLES.map(s => (
-            <button key={s} className="cqp-suggestion" onClick={() => { setInput(s); textareaRef.current?.focus(); }}>
+            <button
+              key={s}
+              className="cqp-suggestion"
+              onClick={() => { setInput(s); textareaRef.current?.focus(); }}
+            >
               {s}
             </button>
           ))}
@@ -204,7 +218,7 @@ export default function SupabasePage() {
         <div className="cqp-chat-header">
           <SupabaseIcon size={15}/>
           <span>Supabase Chat</span>
-          <Badge color="green" style={{marginLeft:'auto'}}>{conn?.name || 'No connection'}</Badge>
+          <Badge color="green" style={{ marginLeft: 'auto' }}>{conn?.name || 'No connection'}</Badge>
         </div>
 
         <div className="cqp-messages">
@@ -248,7 +262,11 @@ export default function SupabasePage() {
           <div ref={chatEndRef}/>
         </div>
 
-        {error && <div className="cqp-input-error"><Alert type="error" onClose={() => setError('')}>{error}</Alert></div>}
+        {error && (
+          <div className="cqp-input-error">
+            <Alert type="error" onClose={() => setError('')}>{error}</Alert>
+          </div>
+        )}
 
         <div className="cqp-input-bar">
           <textarea
@@ -260,7 +278,11 @@ export default function SupabasePage() {
             placeholder="Ask anything about your Supabase data... (Enter to send, Shift+Enter for new line)"
             rows={1}
           />
-          <button className="cqp-send-btn" onClick={send} disabled={loading || !input.trim()}>
+          <button
+            className="cqp-send-btn"
+            onClick={send}
+            disabled={loading || !input.trim()}
+          >
             <Send size={15}/>
           </button>
         </div>

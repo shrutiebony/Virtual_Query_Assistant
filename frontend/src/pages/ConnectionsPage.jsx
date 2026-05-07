@@ -2,7 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
 import axios from 'axios';
 import { Button, Input, Select, Card, Badge, Alert, PageHeader, EmptyState } from '../components/ui';
-import { Link2, Plus, Trash2, Database, Leaf, CheckCircle, XCircle } from 'lucide-react';
+import { Link2, Plus, Trash2, Database, Leaf, CheckCircle, XCircle, Zap } from 'lucide-react';
+
+function SupabaseIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M13.976 22.042c-.371.44-1.101.185-1.101-.393V13.5H3.75c-.76 0-1.17-.895-.688-1.47L10.024 3.458c.371-.44 1.101-.185 1.101.393V10.5h9.125c.76 0 1.17.895.688 1.47l-6.962 10.072z" fill="#3ECF8E"/>
+    </svg>
+  );
+}
 import './ConnectionsPage.css';
 
 const EMPTY_FORM = {
@@ -39,6 +47,28 @@ export default function ConnectionsPage() {
     const defaultPort = type === 'mongodb' ? '27017' : type === 'mysql' ? '3307' : '5432';
     setForm(f => ({ ...f, db_type: type, port: defaultPort }));
     setTestResult(null);
+  };
+
+  const testPGConn = async () => {
+    if (!form.host || !form.dbname || !form.db_username || !form.password)
+      return setError('Please fill in all connection fields first.');
+    setTesting(true); setTestResult(null); setError('');
+    try {
+      const base  = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('token');
+      const safe_user = encodeURIComponent(form.db_username);
+      const safe_pw   = encodeURIComponent(form.password);
+      const uri = `postgresql://${safe_user}:${safe_pw}@${form.host}:${form.port}/${form.dbname}`;
+      const r = await axios.post(
+        `${base}/pg/list-tables`,
+        { pg_uri: uri },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const tables = r.data?.tables || Object.keys(r.data?.schemas?.public || {});
+      setTestResult({ ok: true, msg: `Connected — ${tables.length} table(s) found` });
+    } catch (e) {
+      setTestResult({ ok: false, msg: e.response?.data?.detail || e.message });
+    } finally { setTesting(false); }
   };
 
   const testConn = async () => {
@@ -87,7 +117,7 @@ export default function ConnectionsPage() {
     e.preventDefault();
     if (!form.name || !form.dbname || !form.password)
       return setError('Name, database name and password/URI are required.');
-    if ((form.db_type === 'postgresql' || form.db_type === 'mysql') && (!form.host || !form.db_username))
+    if ((form.db_type === 'postgresql' || form.db_type === 'supabase' || form.db_type === 'mysql') && (!form.host || !form.db_username))
       return setError('Host and username are required.');
     setLoading(true); setError('');
     try {
@@ -124,11 +154,14 @@ export default function ConnectionsPage() {
     finally { setDeleting(null); }
   };
 
-  const isMongo = form.db_type === 'mongodb';
-  const isMySQL = form.db_type === 'mysql';
-  const isPG    = form.db_type === 'postgresql';
+  const isMongo    = form.db_type === 'mongodb';
+  const isMySQL    = form.db_type === 'mysql';
+  const isPG       = form.db_type === 'postgresql';
+  const isSupabase = form.db_type === 'supabase';
+  const isPGLike   = isPG || isSupabase;
 
   const pg = connections.filter(c => c.db_type === 'postgresql');
+  const sb = connections.filter(c => c.db_type === 'supabase');
   const mg = connections.filter(c => c.db_type === 'mongodb');
   const my = connections.filter(c => c.db_type === 'mysql');
 
@@ -170,21 +203,29 @@ export default function ConnectionsPage() {
                 onChange={handleTypeChange}
               >
                 <option value="postgresql">PostgreSQL</option>
+                <option value="supabase">Supabase</option>
                 <option value="mongodb">MongoDB</option>
                 <option value="mysql">MySQL</option>
               </Select>
             </div>
 
             {/* PostgreSQL fields */}
-            {isPG && (
+            {isPGLike && (
               <>
+                {isSupabase && (
+                  <div style={{ background: 'rgba(62,207,142,.08)', border: '1px solid rgba(62,207,142,.25)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#065f46', marginBottom: 4 }}>
+                    <strong style={{ color: '#059669' }}>Supabase connection details</strong> — find these in your Supabase dashboard under{' '}
+                    <strong>Project Settings → Database</strong>.
+                    Use the <strong>Session mode</strong> host (port 5432) or <strong>Transaction mode</strong> pooler (port 6543).
+                  </div>
+                )}
                 <div className="conn-form-row">
-                  <Input label="Host" name="host" value={form.host} onChange={handle} placeholder="localhost" />
+                  <Input label="Host" name="host" value={form.host} onChange={handle} placeholder={isSupabase ? 'db.xxxx.supabase.co' : 'localhost'} />
                   <Input label="Port" name="port" value={form.port} onChange={handle} placeholder="5432" type="number" />
                 </div>
                 <div className="conn-form-row">
-                  <Input label="Database Name" name="dbname" value={form.dbname} onChange={handle} placeholder="my_database" />
-                  <Input label="Username" name="db_username" value={form.db_username} onChange={handle} placeholder="db_user" />
+                  <Input label="Database Name" name="dbname" value={form.dbname} onChange={handle} placeholder={isSupabase ? 'postgres' : 'my_database'} />
+                  <Input label="Username" name="db_username" value={form.db_username} onChange={handle} placeholder={isSupabase ? 'postgres' : 'db_user'} />
                 </div>
                 <Input
                   label="Password"
@@ -194,6 +235,17 @@ export default function ConnectionsPage() {
                   onChange={handle}
                   placeholder="••••••••"
                 />
+                <div className="conn-test-row">
+                  <Button type="button" variant="secondary" size="sm" loading={testing} onClick={testPGConn}>
+                    Test Connection
+                  </Button>
+                  {testResult && testResult.ok && (
+                    <span className="conn-test-ok"><CheckCircle size={14}/> {testResult.msg}</span>
+                  )}
+                  {testResult && !testResult.ok && (
+                    <span className="conn-test-fail"><XCircle size={14}/> {testResult.msg}</span>
+                  )}
+                </div>
               </>
             )}
 
@@ -313,6 +365,16 @@ export default function ConnectionsPage() {
               deleting={deleting}
             />
           )}
+          {sb.length > 0 && (
+            <ConnGroup
+              title="Supabase"
+              icon={<SupabaseIcon size={16}/>}
+              color="green"
+              items={sb}
+              onDelete={del}
+              deleting={deleting}
+            />
+          )}
           {mg.length > 0 && (
             <ConnGroup
               title="MongoDB"
@@ -349,7 +411,8 @@ function ConnGroup({ title, icon, color, items, onDelete, deleting }) {
         {items.map(c => (
           <div key={c.id} className="conn-item">
             <div className="conn-item-icon">
-              {c.db_type === 'postgresql' ? <Database size={16}/> :
+              {c.db_type === 'supabase'   ? <SupabaseIcon size={16}/> :
+               c.db_type === 'postgresql' ? <Database size={16}/> :
                c.db_type === 'mysql'      ? <Database size={16}/> :
                                             <Leaf size={16}/>}
             </div>
