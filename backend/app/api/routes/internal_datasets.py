@@ -526,7 +526,7 @@ def dataset_nl_query_auto(req: DatasetAutoNLRequest,
 
     tables_used = [t for t in all_schemas if t.lower() in (state.generated_sql or "").lower()]
 
-    return {
+    response = {
         "source":            "internal_auto",
         "tables_used":       tables_used,
         "question":          req.question,
@@ -540,6 +540,17 @@ def dataset_nl_query_auto(req: DatasetAutoNLRequest,
         "profile":           state.profile,
         "eda_insights":      state.eda_insights,
     }
+
+    if state.react_attempts and state.react_attempts > 0:
+        response["react_trace"] = {
+            "attempts":      state.react_attempts,
+            "thoughts":      state.react_thoughts,
+            "actions":       state.react_actions,
+            "observations":  state.react_observations,
+            "self_corrected": state.react_attempts > 1,
+        }
+
+    return response
 
 
 @router.delete("/{table_name}")

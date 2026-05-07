@@ -143,9 +143,9 @@ class Orchestrator:
     # ──────────────────────────────────────────────────────────
     def run_dataset_query(self, state: AgentState) -> AgentState:
         """
-        Uploaded dataset query pipeline:
-        SchemaAgent → NLToSQLAgent → SafetyAgent → ExecutionAgent
-        → InsightAgent → VisualizationAgent
+        Uploaded dataset query pipeline with ReAct self-correction:
+        SchemaAgent → ReActAgent (NLToSQL + Safety + Execution, up to 3 retries)
+        → ProfilingAgent → EDAAgent → InsightAgent → VisualizationAgent
         """
         logger.info("Orchestrator: starting dataset pipeline for: %s", state.user_question)
 
@@ -154,18 +154,10 @@ class Orchestrator:
         if state.execution_error:
             return state
 
-        # Step 2: Generate SQL
-        state = self.nl_to_sql_agent.run(state)
-        if state.execution_error:
-            return state
-
-        # Step 3: Safety check
-        state = self.safety_agent.run(state)
-        if state.execution_error:
-            return state
-
-        # Step 4: Execute
-        state = self.execution_agent.run(state)
+        # Steps 2-4: ReAct loop (NLToSQL + Safety + Execution with retry)
+        state.react_enabled      = True
+        state.react_max_attempts = 3
+        state = self.react_agent.run(state)
         if state.execution_error:
             return state
 
