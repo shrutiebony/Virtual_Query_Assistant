@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Zap, ArrowRight, Database, Sparkles, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Zap, ArrowRight } from 'lucide-react';
 import './AuthPages.css';
 
 const FEATURES = [
-  { icon: Database,    text: 'PostgreSQL & MongoDB support' },
-  { icon: Sparkles,    text: 'Natural language → SQL via Gemini AI' },
-  { icon: ShieldCheck, text: 'Encrypted, secure connections' },
+  { title: 'Natural Language to SQL', desc: 'Ask questions in plain English, get instant results' },
+  { title: 'Multi-Agent AI', desc: 'ReAct loops, Swarm agents, and self-correction' },
+  { title: '82% Benchmark Accuracy', desc: 'KDD Cup 2026 DataAgent-Bench results' },
 ];
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm]     = useState({ email: '', password: '' });
-  const [error, setError]   = useState('');
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   const handle = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -35,39 +36,37 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      {/* ── Left brand panel ── */}
+      {/* LEFT */}
       <div className="auth-left">
-        <div className="auth-grid-bg" />
-        <div className="auth-orb" />
+        <div className="auth-orb auth-orb-1" />
+        <div className="auth-orb auth-orb-2" />
+        <div className="auth-orb auth-orb-3" />
 
         <div className="auth-brand">
-          <div className="auth-brand-icon"><Zap size={18} /></div>
-          <span>DB Assistant</span>
+          <div className="auth-logo-box">DB</div>
+          <span className="auth-brand-name">DB Assistant</span>
         </div>
 
         <div className="auth-left-body">
           <div className="auth-tagline">Query your databases with plain English</div>
-          <p className="auth-sub">No SQL expertise needed. Connect, ask, and get answers instantly - powered by Google Gemini AI.</p>
-
+          <p className="auth-sub">No SQL expertise needed. Connect any database and get AI-powered answers instantly.</p>
           <div className="auth-feature-list">
-            {FEATURES.map(({ icon: Icon, text }) => (
-              <div key={text} className="auth-feature-row">
-                <div className="auth-feature-icon"><Icon size={14} /></div>
-                <span>{text}</span>
+            {FEATURES.map(f => (
+              <div key={f.title} className="auth-feature-row">
+                <div className="auth-feature-icon-box"><Zap size={15} /></div>
+                <div>
+                  <div className="auth-feature-title">{f.title}</div>
+                  <div className="auth-feature-desc">{f.desc}</div>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="auth-left-footer">
-          <span className="auth-pill">PostgreSQL</span>
-          <span className="auth-pill">MongoDB</span>
-          <span className="auth-pill">Gemini 2.0</span>
-          <span className="auth-pill">CSV / Excel</span>
-        </div>
+        <div className="auth-left-footer">SJSU CMPE 295B · Master's Project 2026</div>
       </div>
 
-      {/* ── Right form panel ── */}
+      {/* RIGHT */}
       <div className="auth-right">
         <div className="auth-card">
           <div className="auth-card-eyebrow">Welcome back</div>
@@ -78,22 +77,51 @@ export default function LoginPage() {
 
           <form onSubmit={submit} className="auth-form">
             <div className="auth-field">
-              <label htmlFor="email">Email address</label>
-              <input id="email" name="email" type="email" value={form.email}
-                onChange={handle} placeholder="you@example.com" autoComplete="email" autoFocus />
+              <div className="auth-field-row">
+                <label htmlFor="email">Email address</label>
+              </div>
+              <div className="auth-input-wrap">
+                <span className="auth-input-icon"><Mail size={16} /></span>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={form.email}
+                  onChange={handle}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
             </div>
+
             <div className="auth-field">
-              <label htmlFor="password">Password</label>
-              <input id="password" name="password" type="password" value={form.password}
-                onChange={handle} placeholder="••••••••" autoComplete="current-password" />
+              <div className="auth-field-row">
+                <label htmlFor="password">Password</label>
+                <a href="#" className="auth-forgot" onClick={e => e.preventDefault()}>Forgot password?</a>
+              </div>
+              <div className="auth-input-wrap">
+                <span className="auth-input-icon"><Lock size={16} /></span>
+                <input
+                  id="password"
+                  name="password"
+                  type={showPw ? 'text' : 'password'}
+                  value={form.password}
+                  onChange={handle}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+                <button type="button" className="auth-input-action" onClick={() => setShowPw(v => !v)}>
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="auth-btn" disabled={loading}>
-              {loading ? (
-                <span className="auth-spinner" />
-              ) : (
-                <><span>Sign in</span><ArrowRight size={16} /></>
-              )}
+              {loading
+                ? <span className="auth-spinner" />
+                : <><span>Sign in</span><ArrowRight size={16} /></>
+              }
             </button>
           </form>
 
