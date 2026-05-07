@@ -41,10 +41,11 @@ class SwarmOrchestrator:
     # ── PostgreSQL Swarm ─────────────────────────────────────────────────
     def run(
         self,
-        pg_uri:       str,
-        question:     str,
-        limit:        int = 50,
-        max_subtasks: int = MAX_SUBTASKS,
+        pg_uri:         str,
+        question:       str,
+        limit:          int = 50,
+        max_subtasks:   int = MAX_SUBTASKS,
+        allowed_tables: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         t0 = time.time()
         logger.info("SwarmOrchestrator [PG]: starting for: %s", question)
@@ -60,6 +61,15 @@ class SwarmOrchestrator:
 
         if schema_state.execution_error:
             return self._error_response(schema_state.execution_error, t0)
+
+        # Filter to allowed tables when specified (e.g. uploaded datasets)
+        if allowed_tables:
+            schema_state.tables_schema = {
+                k: v for k, v in schema_state.tables_schema.items()
+                if any(k == t or k.endswith(f".{t}") for t in allowed_tables)
+            }
+            if not schema_state.tables_schema:
+                return self._error_response("None of the specified tables were found.", t0)
 
         table_names = list(schema_state.tables_schema.keys())
 

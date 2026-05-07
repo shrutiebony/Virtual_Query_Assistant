@@ -16,4 +16,7 @@ export const swarmAPI = {
 
   mongoQuery: (params) =>
     axios.post(`${API_BASE}/swarm/mongo-query`, params, { headers: getAuthHeader() }),
+
+  datasetQuery: (params) =>
+    axios.post(`${API_BASE}/swarm/dataset-query`, params, { headers: getAuthHeader() }),
 };

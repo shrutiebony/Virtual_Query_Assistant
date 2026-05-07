@@ -3,10 +3,18 @@ import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { authAPI } from '../services/api';
+import { authAPI, datasetAPI } from '../services/api';
 import { swarmAPI } from '../services/swarmApi';
 import { Badge } from '../components/ui';
-import { Database, Leaf, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { Database, Leaf, Zap, ChevronDown, ChevronUp, FolderOpen } from 'lucide-react';
+
+function SupabaseIcon({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M13.976 22.042c-.371.44-1.101.185-1.101-.393V13.5H3.75c-.76 0-1.17-.895-.688-1.47L10.024 3.458c.371-.44 1.101-.185 1.101.393V10.5h9.125c.76 0 1.17.895.688 1.47l-6.962 10.072z" fill="#3ECF8E"/>
+    </svg>
+  );
+}
 import './ChatQueryPage.css';
 
 const CHART_COLORS = ['#6366f1','#22c55e','#f59e0b','#14b8a6','#a855f7','#ef4444','#f97316','#06b6d4'];
@@ -20,9 +28,11 @@ const SAMPLE_QUESTIONS = [
 ];
 
 const DB_TYPES = [
-  { id: 'postgresql', label: 'PostgreSQL', icon: <Database size={13}/>, color: '#3b82f6' },
-  { id: 'mysql',      label: 'MySQL',      icon: <Database size={13}/>, color: '#f59e0b' },
-  { id: 'mongodb',    label: 'MongoDB',    icon: <Leaf size={13}/>,     color: '#22c55e' },
+  { id: 'postgresql', label: 'PostgreSQL', icon: <Database size={13}/>,    color: '#3b82f6' },
+  { id: 'supabase',   label: 'Supabase',   icon: <SupabaseIcon size={13}/>, color: '#3ECF8E' },
+  { id: 'mysql',      label: 'MySQL',      icon: <Database size={13}/>,    color: '#f59e0b' },
+  { id: 'mongodb',    label: 'MongoDB',    icon: <Leaf size={13}/>,        color: '#22c55e' },
+  { id: 'uploaded',   label: 'Datasets',   icon: <FolderOpen size={13}/>,  color: '#8b5cf6' },
 ];
 
 /* ── Bar chart for a single result ──────────────────────── */
@@ -435,10 +445,19 @@ export default function SwarmPage() {
   const [error, setError]               = useState('');
   const [mongoCollections, setMongoCollections]       = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
+  const [datasets, setDatasets]                       = useState([]);
+  const [selectedDatasets, setSelectedDatasets]       = useState([]);
 
+  // Load saved connections (not for uploaded datasets)
   useEffect(() => {
+    if (dbType === 'uploaded') {
+      setConnections([]); setSelectedConn('');
+      setResult(null); setError('');
+      return;
+    }
+    const filterType = dbType === 'supabase' ? 'supabase' : dbType;
     authAPI.connections().then(r => {
-      const filtered = (r.data||[]).filter(c => c.db_type === dbType);
+      const filtered = (r.data||[]).filter(c => c.db_type === filterType);
       setConnections(filtered);
       setSelectedConn(filtered.length ? String(filtered[0].id) : '');
       setResult(null); setError('');
@@ -446,10 +465,22 @@ export default function SwarmPage() {
     }).catch(() => {});
   }, [dbType]);
 
+  // Load uploaded datasets
+  useEffect(() => {
+    if (dbType === 'uploaded') {
+      datasetAPI.list()
+        .then(r => {
+          const ds = r.data?.datasets || [];
+          setDatasets(ds);
+          setSelectedDatasets(ds.map(d => d.table_name));
+        }).catch(() => {});
+    }
+  }, [dbType]);
+
   const conn = connections.find(c => String(c.id) === String(selectedConn));
 
   useEffect(() => {
-    if (dbType !== 'mongodb' || !conn) return;
+    if (dbType !== 'mongodb' || !conn) return; // eslint-disable-line
     setMongoCollections([]); setSelectedCollections([]);
     authAPI.getPassword(conn.id).then(r => {
       const uri = r.data?.password;
@@ -468,11 +499,13 @@ export default function SwarmPage() {
   }, [selectedConn, dbType]);
 
   const run = async () => {
-    if (!question.trim() || !conn) return;
+    if (!question.trim()) return;
+    if (dbType !== 'uploaded' && !conn) return;
+    if (dbType === 'uploaded' && !selectedDatasets.length) return;
     setLoading(true); setError(''); setResult(null);
     try {
       let res;
-      if (dbType === 'postgresql') {
+      if (dbType === 'postgresql' || dbType === 'supabase') {
         const uriRes = await authAPI.getUri(conn.id);
         const pg_uri = uriRes.data?.uri;
         if (!pg_uri) throw new Error('Could not get connection URI');
@@ -494,6 +527,11 @@ export default function SwarmPage() {
         res = await swarmAPI.mongoQuery({
           mongo_uri, db_name: conn.dbname,
           collections: selectedCollections.length > 0 ? selectedCollections : mongoCollections.slice(0,2),
+          question: question.trim(), limit: 50, max_subtasks: maxSubtasks,
+        });
+      } else if (dbType === 'uploaded') {
+        res = await swarmAPI.datasetQuery({
+          table_names: selectedDatasets,
           question: question.trim(), limit: 50, max_subtasks: maxSubtasks,
         });
       }
@@ -528,22 +566,54 @@ export default function SwarmPage() {
           </div>
         </div>
 
-        <div className="cqp-section">
-          <div className="cqp-section-label">Connection</div>
-          {connections.length === 0 ? (
-            <div className="cqp-empty-note">
-              No {dbType} connections.{' '}
-              <a href="/connections" style={{color:'var(--accent)'}}>Add one</a>
-            </div>
-          ) : (
-            <select className="cqp-select" value={selectedConn}
-              onChange={e => setSelectedConn(e.target.value)}>
-              {connections.map(c => (
-                <option key={c.id} value={String(c.id)}>{c.name||c.dbname}</option>
-              ))}
-            </select>
-          )}
-        </div>
+        {dbType !== 'uploaded' && (
+          <div className="cqp-section">
+            <div className="cqp-section-label">Connection</div>
+            {connections.length === 0 ? (
+              <div className="cqp-empty-note">
+                No {dbType} connections.{' '}
+                <a href="/connections" style={{color:'var(--accent)'}}>Add one</a>
+              </div>
+            ) : (
+              <select className="cqp-select" value={selectedConn}
+                onChange={e => setSelectedConn(e.target.value)}>
+                {connections.map(c => (
+                  <option key={c.id} value={String(c.id)}>{c.name||c.dbname}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        {dbType === 'uploaded' && (
+          <div className="cqp-section">
+            <div className="cqp-section-label">Datasets ({datasets.length})</div>
+            {datasets.length === 0 ? (
+              <div className="cqp-empty-note">
+                No datasets uploaded.{' '}
+                <a href="/datasets" style={{color:'var(--accent)'}}>Upload one</a>
+              </div>
+            ) : (
+              <div className="cqp-checklist">
+                {datasets.map(d => (
+                  <label key={d.table_name} className={`cqp-check-item ${selectedDatasets.includes(d.table_name) ? 'on' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedDatasets.includes(d.table_name)}
+                      onChange={() => setSelectedDatasets(prev =>
+                        prev.includes(d.table_name) ? prev.filter(x => x !== d.table_name) : [...prev, d.table_name]
+                      )}
+                    />
+                    <span>{d.table_name}</span>
+                    {d.row_count != null && (
+                      <span style={{fontSize:10, color:'#9ca3af', marginLeft:'auto'}}>{d.row_count} rows</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {dbType === 'mongodb' && mongoCollections.length > 0 && (
           <div className="cqp-section">
@@ -598,12 +668,16 @@ export default function SwarmPage() {
           <div style={{marginLeft:'auto', display:'flex', alignItems:'center', gap:8}}>
             <span style={{
               fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:6,
-              background: dbType==='postgresql'?'#dbeafe': dbType==='mysql'?'#fef3c7':'#dcfce7',
-              color:      dbType==='postgresql'?'#1d4ed8': dbType==='mysql'?'#b45309':'#15803d',
+              background: dbType==='postgresql'?'#dbeafe': dbType==='supabase'?'rgba(62,207,142,.15)': dbType==='mysql'?'#fef3c7': dbType==='uploaded'?'#f3e8ff':'#dcfce7',
+              color:      dbType==='postgresql'?'#1d4ed8': dbType==='supabase'?'#059669': dbType==='mysql'?'#b45309': dbType==='uploaded'?'#7c3aed':'#15803d',
             }}>
-              {dbType.toUpperCase()}
+              {dbType === 'uploaded' ? 'Datasets' : dbType.toUpperCase()}
             </span>
-            <Badge color="blue">{conn?.name||'No connection'}</Badge>
+            <Badge color="blue">
+              {dbType === 'uploaded'
+                ? `${selectedDatasets.length} table${selectedDatasets.length !== 1 ? 's' : ''}`
+                : conn?.name || 'No connection'}
+            </Badge>
           </div>
         </div>
 
@@ -722,12 +796,12 @@ export default function SwarmPage() {
             value={question}
             onChange={e => setQuestion(e.target.value)}
             onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();run();} }}
-            placeholder={`Ask a complex question about your ${dbType} data...`}
+            placeholder={`Ask a complex question about your ${dbType === 'uploaded' ? 'uploaded datasets' : dbType} data...`}
             rows={1}
             disabled={loading}
           />
           <button className="cqp-send-btn" onClick={run}
-            disabled={loading||!question.trim()||!conn}>
+            disabled={loading || !question.trim() || (dbType !== 'uploaded' && !conn) || (dbType === 'uploaded' && !selectedDatasets.length)}>
             <Zap size={15}/>
           </button>
         </div>

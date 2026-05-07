@@ -115,6 +115,35 @@ def swarm_mongo_query(req: SwarmMongoRequest, user=Depends(get_current_user)):
         raise HTTPException(500, detail=str(e))
 
 
+class SwarmDatasetRequest(BaseModel):
+    table_names:  List[str]
+    question:     str
+    limit:        int = Field(50, ge=1, le=200)
+    max_subtasks: int = Field(3,  ge=2, le=4)
+
+
+@router.post("/dataset-query")
+def swarm_dataset_query(req: SwarmDatasetRequest, user=Depends(get_current_user)):
+    """Swarm parallel agents over uploaded datasets stored in the system DB."""
+    try:
+        from app.api.routes.internal_datasets import _sys_uri
+        result = _swarm.run(
+            pg_uri         = _sys_uri(),
+            question       = req.question,
+            limit          = req.limit,
+            max_subtasks   = req.max_subtasks,
+            allowed_tables = req.table_names,
+        )
+        if result.get("error"):
+            raise HTTPException(500, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Swarm Dataset failed: %s", e, exc_info=True)
+        raise HTTPException(500, detail=str(e))
+
+
 @router.get("/health")
 def swarm_health():
-    return {"status": "ok", "databases": ["postgresql", "mysql", "mongodb"]}
+    return {"status": "ok", "databases": ["postgresql", "mysql", "mongodb", "datasets"]}
