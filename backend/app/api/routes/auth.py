@@ -590,11 +590,13 @@ def get_connection_uri_by_id(req: GetURIRequest, user=Depends(get_current_user))
         raise HTTPException(404, detail="Connection not found.")
 
     r = dict(row)
-    # Use the same decrypt function used everywhere else in this file
     try:
         pw = decrypt_db_password(r["encrypted_password"])
-    except Exception as e:
-        raise HTTPException(500, detail=f"Failed to decrypt connection password: {e}")
+    except Exception:
+        raise HTTPException(422, detail=(
+            "Connection password could not be decrypted — the server encryption key was rotated. "
+            "Please delete this connection and re-add it with your credentials."
+        ))
 
     db_type = r.get("db_type", "postgresql")
 
@@ -872,8 +874,11 @@ def get_connection_password(req: GetURIRequest, user=Depends(get_current_user)):
     r = dict(row)
     try:
         pw = decrypt_db_password(r["encrypted_password"])
-    except Exception as e:
-        raise HTTPException(500, detail=f"Failed to decrypt connection password: {e}")
+    except Exception:
+        raise HTTPException(422, detail=(
+            "Connection password could not be decrypted — the server encryption key was rotated. "
+            "Please delete this connection and re-add it with your credentials."
+        ))
 
     return {
         "password":    pw,

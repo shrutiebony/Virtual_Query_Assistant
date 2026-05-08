@@ -50,7 +50,12 @@ export default function PostgresPage() {
         setTables(tbls);
         setSelTables(tbls);
       }).catch(() => {});
-    }).catch(() => {});
+    }).catch(e => {
+      const msg = e.response?.data?.detail || '';
+      if (msg.includes('decrypted') || msg.includes('encryption')) {
+        setError('Connection credentials are invalid — please delete and re-add this connection.');
+      }
+    });
   }, [selectedConn]);
 
   const toggleTable = t => setSelTables(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]);

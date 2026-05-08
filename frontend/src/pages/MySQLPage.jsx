@@ -106,7 +106,15 @@ export default function MySQLPage() {
     setLoading(true);
 
     try {
-      const uriRes = await authAPI.getUri(conn.id);
+      let uriRes;
+      try {
+        uriRes = await authAPI.getUri(conn.id);
+      } catch (e) {
+        const msg = e.response?.data?.detail || '';
+        throw new Error(msg.includes('decrypted') || msg.includes('encryption')
+          ? 'Connection credentials are invalid — please delete and re-add this connection in Connections.'
+          : (msg || 'Could not retrieve connection URI.'));
+      }
       const password = extractPassword(uriRes.data?.uri || '');
 
       const connParams = {

@@ -59,7 +59,12 @@ export default function MongoPage() {
         setDatabases(dbs);
         if (dbs.length === 1) setDbName(dbs[0]);
       })
-      .catch(e => setError('Failed to load databases: ' + (e.response?.data?.detail || e.message)))
+      .catch(e => {
+        const msg = e.response?.data?.detail || e.message || '';
+        setError(msg.includes('decrypted') || msg.includes('encryption')
+          ? 'Connection credentials are invalid — please delete and re-add this connection in Connections.'
+          : 'Failed to load databases: ' + msg);
+      })
       .finally(() => setLoadingDbs(false));
   }, [selectedConn]);
 
