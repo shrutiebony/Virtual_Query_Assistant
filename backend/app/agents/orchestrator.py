@@ -149,6 +149,12 @@ class Orchestrator:
         """
         logger.info("Orchestrator: starting dataset pipeline for: %s", state.user_question)
 
+        # Ensure pg_uri is set so PgExecutionAgent inside react_agent can connect
+        # to the internal system database where dataset tables live.
+        if not state.pg_uri:
+            from app.api.routes.internal_datasets import _sys_uri
+            state.pg_uri = _sys_uri()
+
         # Step 1: Load schema from dataset_registry
         state = self.schema_agent.run(state)
         if state.execution_error:
