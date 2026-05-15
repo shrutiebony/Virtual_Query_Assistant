@@ -10,7 +10,7 @@ RUN npm ci --legacy-peer-deps
 COPY public/ ./public/
 COPY src/ ./src/
 # Pass backend URL as build arg
-ARG REACT_APP_API_URL=https://db-assistant-backend-HASH-uc.a.run.app
+ARG REACT_APP_API_URL=https://db-assistant-backend-105401535311.us-central1.run.app
 ENV REACT_APP_API_URL=$REACT_APP_API_URL
 RUN npm run build
 

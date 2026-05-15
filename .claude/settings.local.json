@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(gcloud run deploy db-assistant-frontend *)",
+      "PowerShell(gcloud logging read \"resource.type=cloud_run_revision AND resource.labels.service_name=db-assistant-backend AND resource.labels.revision_name=db-assistant-backend-00034-tzp AND textPayload:datasets\" --limit=20 --format=\"value\\(textPayload\\)\" --project=database-assistant 2>&1 | Select-Object -Last 30)",
+      "PowerShell(gcloud logging read \"resource.type=cloud_run_revision AND resource.labels.service_name=db-assistant-backend AND resource.labels.revision_name=db-assistant-backend-00036-hq9 AND textPayload:decrypt\" --limit=20 --format=\"value\\(textPayload\\)\" --project=database-assistant 2>&1 | Select-Object -Last 20)",
+      "PowerShell(gcloud logging read *)"
+    ]
+  }
+}

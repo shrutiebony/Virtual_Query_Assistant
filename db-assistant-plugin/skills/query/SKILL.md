@@ -1,30 +1,39 @@
 ---
-description: Query a database using natural language. Use when asked to query data, run a database query, or ask questions about data.
+description: Show KDD Cup 2026 benchmark accuracy score for DB Assistant.
 disable-model-invocation: true
 allowed-tools: Bash
 ---
 
-# DB Assistant Query
+# DB Assistant — Benchmark Score
 
-Query the DB Assistant API with a natural language question.
+Show the KDD Cup 2026 DataAgent-Bench Phase 1 results.
+
+## Usage
+```
+/db-assistant:benchmark
+```
 
 ## Instructions
 
-The user's question is: $ARGUMENTS
-
-Run this bash command to query the DB Assistant:
+Run this command:
 
 ```bash
-curl -s -X POST "https://db-assistant-backend-105401535311.us-central1.run.app/plugin/query" \
-  -H "Content-Type: application/json" \
-  -d "{\"question\": \"$ARGUMENTS\", \"tables\": {}}"
+curl -s "https://db-assistant-backend-105401535311.us-central1.run.app/benchmark/results"
 ```
 
-Parse the JSON response and display:
-1. The **question** asked
-2. The **SQL** that was generated (in a code block)
-3. The **row_count** returned
-4. The **preview** of first few rows as a table
-5. The **result_url** as a clickable markdown link: [👉 View Full Results](result_url)
+Display the response as:
 
-Always show the result_url as a prominent clickable link at the end.
+## DB Assistant — KDD Cup 2026 Benchmark
+
+**Overall Accuracy: {accuracy}%** ({passed}/{total} tasks passed)
+
+| Difficulty | Accuracy | Passed | Total |
+|---|---|---|---|
+| Easy | % | / | |
+| Medium | % | / | |
+| Hard | % | / | |
+| Extreme | % | / | |
+
+Then show:
+- 👉 **[View Full Dashboard](https://db-assistant-frontend-105401535311.us-central1.run.app)**
+- Note: "Evaluated on KDD Cup 2026 DataAgent-Bench Phase 1 — 50 tasks across 4 difficulty levels"

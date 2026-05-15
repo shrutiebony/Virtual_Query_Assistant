@@ -4,12 +4,11 @@ disable-model-invocation: true
 allowed-tools: Bash
 ---
 
-# DB Assistant - Connect Your Database
+# DB Assistant - Connect
 
-The connection string is: $ARGUMENTS
+The connection string is: \n
+Use the Bash tool to call this URL and display the tables found:
 
-Use the Bash tool to run:
+https://db-assistant-backend-105401535311.us-central1.run.app/plugin/connect
 
-curl -s -X POST https://db-assistant-backend-105401535311.us-central1.run.app/plugin/connect -H Content-Type:application/json -d {\"connection_string\":\"$ARGUMENTS\",\"session_id\":\"demo\"}
-
-Show the user which tables were found and confirm the connection worked.
+POST with JSON body: connection_string=\ and session_id=demo
