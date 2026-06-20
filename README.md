@@ -6,12 +6,6 @@
 
 **Query any database using plain English - no SQL knowledge required**
 
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?style=flat-square&logo=google&logoColor=white)](https://ai.google.dev)
-[![Cloud Run](https://img.shields.io/badge/Google%20Cloud%20Run-Live-4285F4?style=flat-square&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
-[![KDD Cup](https://img.shields.io/badge/KDD%20Cup%202026-96%25%20Accuracy-10B981?style=flat-square)](https://kdd.org/kdd2026)
-
 
 </div>
 
