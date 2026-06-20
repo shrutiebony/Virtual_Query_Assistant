@@ -596,7 +596,8 @@ database-assistant/
 <div align="center">
 
 **DB Assistant** — SJSU CMPE 295B Master's Project · 2026
-Contributors:
+
+#### Contributors:
 Shruti Goyal
 Aditya Rajpurohit
 Rutuja Patil
