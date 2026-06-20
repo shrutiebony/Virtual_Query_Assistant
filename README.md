@@ -1,10 +1,8 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/DB%20Assistant-AI%20Powered-4F46E5?style=for-the-badge&logo=database&logoColor=white" alt="DB Assistant"/>
 
-# Database Assistant
+# Virtual DB Assist
 
-### AI-Powered Natural Language Database Query System
 
 **Query any database using plain English - no SQL knowledge required**
 
@@ -14,13 +12,6 @@
 [![Cloud Run](https://img.shields.io/badge/Google%20Cloud%20Run-Live-4285F4?style=flat-square&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
 [![KDD Cup](https://img.shields.io/badge/KDD%20Cup%202026-96%25%20Accuracy-10B981?style=flat-square)](https://kdd.org/kdd2026)
 
-<br/>
-
-[🌐 Live App](https://db-assistant-frontend-105401535311.us-central1.run.app) · [📖 API Docs](https://db-assistant-backend-105401535311.us-central1.run.app/docs) · [🔌 Plugin UI](https://db-assistant-backend-105401535311.us-central1.run.app/plugin-ui) · [📁 GitHub](https://github.com/rutuja-patil24/database-assistant)
-
-<br/>
-
-![DB Assistant Demo](https://img.shields.io/badge/Demo-Live%20on%20Cloud%20Run-4F46E5?style=for-the-badge)
 
 </div>
 
@@ -45,7 +36,7 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
 DB Assistant is a full-stack AI-powered system that enables **anyone** to query databases using plain English. Built for SJSU CMPE 295B Master's Project, it implements three levels of AI agent autonomy - from a basic single-pass query to a fully autonomous swarm of parallel specialized agents.
 
@@ -68,16 +59,16 @@ SELECT department, AVG(salary) FROM employees GROUP BY department
 
 ---
 
-## 🌐 Live Demo
+##  Live Demo
 
 | Service | URL |
 |---|---|
-| 🖥️ **Web Application** | https://db-assistant-frontend-105401535311.us-central1.run.app |
-| 📖 **API Documentation** | https://db-assistant-backend-105401535311.us-central1.run.app/docs |
-| 🔌 **Plugin Web UI** | https://db-assistant-backend-105401535311.us-central1.run.app/plugin-ui |
-| 📄 **Plugin Manifest** | https://db-assistant-backend-105401535311.us-central1.run.app/.well-known/ai-plugin.json |
-| 🤖 **Agent Demos** | https://db-assistant-frontend-105401535311.us-central1.run.app/hello-world |
-| 📊 **Benchmark Dashboard** | https://db-assistant-frontend-105401535311.us-central1.run.app/benchmark |
+|  **Web Application** | https://db-assistant-frontend-105401535311.us-central1.run.app |
+|  **API Documentation** | https://db-assistant-backend-105401535311.us-central1.run.app/docs |
+|  **Plugin Web UI** | https://db-assistant-backend-105401535311.us-central1.run.app/plugin-ui |
+|  **Plugin Manifest** | https://db-assistant-backend-105401535311.us-central1.run.app/.well-known/ai-plugin.json |
+|  **Agent Demos** | https://db-assistant-frontend-105401535311.us-central1.run.app/hello-world |
+|  **Benchmark Dashboard** | https://db-assistant-frontend-105401535311.us-central1.run.app/benchmark |
 
 ### Demo Database (Neon PostgreSQL)
 
@@ -94,42 +85,42 @@ postgresql://neondb_owner:npg_Rn56FbVsmiQI@ep-wandering-art-amtq6t2m-pooler.c-5.
 
 ---
 
-## ✨ Features
+## Features
 
-### 🗄️ Multi-Database Support
+###  Multi-Database Support
 - **PostgreSQL** - psycopg2 connector with live schema inspection
 - **MySQL** - mysql-connector-python with SHOW TABLES schema reading
 - **MongoDB** - pymongo/motor with collection sampling for schema inference
 - **Supabase** - native PostgreSQL connector (zero additional backend code)
 
-### 🤖 AI Agent Pipeline
+###  AI Agent Pipeline
 - **Dynamic schema injection** - reads live database schema at query time
 - **NL to SQL** - Gemini 2.5 Flash converts natural language to accurate SQL
 - **Safety validation** - blocks SQL injection and destructive operations
 - **Auto visualization** - bar, pie, line, area charts generated automatically
 
-### 🔁 Three Agent Levels
+###  Three Agent Levels
 - **L1 Basic** - single-pass query, fast, no error recovery
 - **L2 ReAct** - self-correcting loop, up to 3 retry attempts with reasoning
 - **L3 Swarm** - 4 parallel specialized agents with AI business insights
 
-### 📊 Visualizations
+###  Visualizations
 - Multiple chart types generated simultaneously (collage view)
 - Auto-selection logic based on result column types
 - Recharts integration with responsive containers
 
-### 📁 Dataset Upload
+###  Dataset Upload
 - CSV upload with Papa.parse browser parsing
 - Excel support via SheetJS
 - In-memory SQLite querying on uploaded data
 
-### 🔌 Open Claude Plugin
+###  Open Claude Plugin
 - Plugin manifest at `/.well-known/ai-plugin.json`
 - Web UI with Demo DB, Connect DB, and CLI tabs
 - Shareable result URLs (`/results/{id}`)
 - Claude Code CLI integration with 3 custom skills
 
-### 🔒 Security
+###  Security
 - JWT authentication with 24-hour token expiry
 - AES-256 Fernet encryption for connection strings
 - bcrypt password hashing
@@ -137,7 +128,7 @@ postgresql://neondb_owner:npg_Rn56FbVsmiQI@ep-wandering-art-amtq6t2m-pooler.c-5.
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -166,7 +157,7 @@ postgresql://neondb_owner:npg_Rn56FbVsmiQI@ep-wandering-art-amtq6t2m-pooler.c-5.
 
 ---
 
-## 🤖 Agent Levels
+##  Agent Levels
 
 ### Level 1 - Basic Agent
 ```
@@ -176,7 +167,7 @@ Single pass, no retry. Fast and simple. Best for straightforward queries.
 
 ### Level 2 - ReAct Agent
 ```
-Question → Think 💭 → Generate SQL ⚡ → Execute 🔄
+Question → Think  → Generate SQL  → Execute 
               ↑                              ↓
               └──── Reason about error ←- Error?
                                         → Success ✓
@@ -207,7 +198,7 @@ Four specialized agents run in parallel via `asyncio.gather`. Best accuracy and 
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 | Technology | Version | Purpose |
@@ -244,7 +235,7 @@ Four specialized agents run in parallel via `asyncio.gather`. Best accuracy and 
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Python 3.11+
@@ -304,7 +295,7 @@ Frontend runs at: `http://localhost:3000`
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 ### Backend (.env)
 
@@ -342,7 +333,7 @@ REACT_APP_API_URL=http://localhost:8000
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 ### Authentication
 ```
@@ -406,7 +397,7 @@ GET /docs      — Swagger UI (46 endpoints)
 
 ---
 
-## 📊 Benchmark Results
+## Benchmark Results
 
 Evaluated on **KDD Cup 2026 DataAgent-Bench Phase 1** — 50 tasks across 4 difficulty levels.
 
@@ -455,7 +446,7 @@ python benchmark_agent.py \
 
 ---
 
-## 🔌 Open Claude Plugin
+## Open Claude Plugin
 
 ### Install Claude Code CLI
 
@@ -554,7 +545,7 @@ gcloud run deploy db-assistant-frontend \
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 database-assistant/
