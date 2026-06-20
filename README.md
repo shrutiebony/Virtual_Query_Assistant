@@ -11,25 +11,6 @@
 
 ---
 
-## 📋 Table of Contents
-
-- [Overview](#-overview)
-- [Live Demo](#-live-demo)
-- [Features](#-features)
-- [Architecture](#-architecture)
-- [Agent Levels](#-agent-levels)
-- [Tech Stack](#-tech-stack)
-- [Getting Started](#-getting-started)
-- [Environment Variables](#-environment-variables)
-- [API Reference](#-api-reference)
-- [Benchmark Results](#-benchmark-results)
-- [Open Claude Plugin](#-open-claude-plugin)
-- [Deployment](#-deployment)
-- [Project Structure](#-project-structure)
-- [Team](#-team)
-
----
-
 ## Overview
 
 DB Assistant is a full-stack AI-powered system that enables **anyone** to query databases using plain English. Built for SJSU CMPE 295B Master's Project, it implements three levels of AI agent autonomy - from a basic single-pass query to a fully autonomous swarm of parallel specialized agents.
