@@ -596,9 +596,9 @@ database-assistant/
 <div align="center">
 
 **DB Assistant** — SJSU CMPE 295B Master's Project · 2026
-
-[![Made with FastAPI](https://img.shields.io/badge/Made%20with-FastAPI-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
-[![Powered by Gemini](https://img.shields.io/badge/Powered%20by-Gemini%202.5-4285F4?style=flat-square&logo=google)](https://ai.google.dev)
-[![Deployed on Cloud Run](https://img.shields.io/badge/Deployed%20on-Cloud%20Run-4285F4?style=flat-square&logo=googlecloud)](https://cloud.google.com/run)
+Contributors:
+Shruti Goyal
+Aditya Rajpurohit
+Rutuja Patil
 
 </div>
